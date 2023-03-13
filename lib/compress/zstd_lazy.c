@@ -11,6 +11,7 @@
 #include "zstd_compress_internal.h"
 #include "zstd_lazy.h"
 #include "../common/bits.h" /* ZSTD_countTrailingZeros64 */
+#include <stdio.h>
 
 
 /*-*************************************
@@ -1197,6 +1198,7 @@ size_t ZSTD_RowFindBestMatch(
         ZSTD_row_prefetch(dmsHashTable, dmsTagTable, dmsRelRow, rowLog);
     }
 
+    printf("[RFBM] curr: %u, ", curr);
     /* Update the hashTable and tagTable up to (but not including) ip */
     ZSTD_row_update_internal(ms, ip, mls, rowLog, rowMask, 1 /* useCache */);
     {   /* Get the hash for ip, compute the appropriate row */
@@ -1225,7 +1227,8 @@ size_t ZSTD_RowFindBestMatch(
             }
             matchBuffer[numMatches++] = matchIndex;
         }
-
+        printf("numMatches:%zu, dml:[", numMatches);
+        
         /* Speed opt: insert current byte into hashtable too. This allows us to avoid one iteration of the loop
            in ZSTD_row_update_internal() at the next search. */
         {
@@ -1253,7 +1256,7 @@ size_t ZSTD_RowFindBestMatch(
                 if (MEM_read32(match) == MEM_read32(ip))   /* assumption : matchIndex <= dictLimit-4 (by table construction) */
                     currentMl = ZSTD_count_2segments(ip+4, match+4, iLimit, dictEnd, prefixStart) + 4;
             }
-
+            printf("(%u,%zu)", curr - matchIndex, currentMl);
             /* Save best solution */
             if (currentMl > ml) {
                 ml = currentMl;
@@ -1261,6 +1264,7 @@ size_t ZSTD_RowFindBestMatch(
                 if (ip+currentMl == iLimit) break; /* best possible, avoids read overflow on next attempt */
             }
         }
+        printf("], ml:%zu\n", ml);
     }
 
     assert(nbAttempts <= (1U << ZSTD_SEARCHLOG_MAX)); /* Check we haven't underflowed. */
