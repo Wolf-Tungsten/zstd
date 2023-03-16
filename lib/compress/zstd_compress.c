@@ -4163,6 +4163,8 @@ ZSTD_compressBlock_splitBlock(ZSTD_CCtx* zc,
     return cSize;
 }
 
+#include "../common/vtune_itt.h"
+
 static size_t
 ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
                             void* dst, size_t dstCapacity,
@@ -4179,8 +4181,12 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
     DEBUGLOG(5, "ZSTD_compressBlock_internal (dstCapacity=%u, dictLimit=%u, nextToUpdate=%u)",
                 (unsigned)dstCapacity, (unsigned)zc->blockState.matchState.window.dictLimit,
                 (unsigned)zc->blockState.matchState.nextToUpdate);
-
+    // start block
+    __itt_task_begin(itt_domain_compressBlock, __itt_null, __itt_null, itt_handle_block);
+    // start lz77
+    __itt_task_begin(itt_domain_compressBlock, __itt_null, __itt_null, itt_handle_lz77);
     {   const size_t bss = ZSTD_buildSeqStore(zc, src, srcSize);
+        __itt_task_end(itt_domain_compressBlock); // end lz77
         FORWARD_IF_ERROR(bss, "ZSTD_buildSeqStore failed");
         if (bss == ZSTDbss_noCompress) { cSize = 0; goto out; }
     }
@@ -4192,6 +4198,8 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
     }
 
     /* encode sequences and literals */
+    // start entropy
+    __itt_task_begin(itt_domain_compressBlock, __itt_null, __itt_null, itt_handle_entropy);
     cSize = ZSTD_entropyCompressSeqStore(&zc->seqStore,
             &zc->blockState.prevCBlock->entropy, &zc->blockState.nextCBlock->entropy,
             &zc->appliedParams,
@@ -4199,7 +4207,8 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
             srcSize,
             zc->entropyWorkspace, ENTROPY_WORKSPACE_SIZE /* statically allocated in resetCCtx */,
             zc->bmi2);
-
+    __itt_task_end(itt_domain_compressBlock); // end entropy
+    __itt_task_end(itt_domain_compressBlock); // end block
     if (frame &&
         /* We don't want to emit our first block as a RLE even if it qualifies because
          * doing so will cause the decoder (cli only) to throw a "should consume all input error."

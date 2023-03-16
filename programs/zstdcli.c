@@ -826,9 +826,10 @@ typedef enum { zom_compress, zom_decompress, zom_test, zom_bench, zom_train, zom
 # define MINCLEVEL  ZSTD_minCLevel()
 # define MAXCLEVEL  ZSTD_maxCLevel()
 #endif
-
+#include "../lib/common/vtune_itt.h"
 int main(int argCount, const char* argv[])
 {
+    vtune_itt_init();
     int argNb,
         followLinks = 0,
         allowBlockDevices = 0,

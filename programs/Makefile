@@ -134,10 +134,11 @@ all: zstd zstd-compress zstd-decompress zstd-small
 .PHONY: allVariants
 allVariants: all zstd-frugal zstd-nolegacy zstd-dictBuilder
 
+VTUNEFLAGS = -I /opt/intel/oneapi/vtune/2022.2.0/sdk/include -L /opt/intel/oneapi/vtune/2022.2.0/sdk/lib64 -littnotify -ldl
 .PHONY: zstd  # must always be run
-zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP)
-zstd : LDFLAGS += $(THREAD_LD) $(DEBUGFLAGS_LD)
-zstd : LDLIBS += $(ZLIBLD) $(LZMALD) $(LZ4LD)
+zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP) $(VTUNEFLAGS) -O2 -g
+zstd : LDFLAGS += $(THREAD_LD) $(DEBUGFLAGS_LD) $(VTUNEFLAGS)
+zstd : LDLIBS += $(ZLIBLD) $(LZMALD) $(LZ4LD) $(VTUNEFLAGS)
 zstd : CPPFLAGS += -DZSTD_LEGACY_SUPPORT=$(ZSTD_LEGACY_SUPPORT)
 ifneq (,$(filter Windows%,$(OS)))
 zstd : $(RES_FILE)
