@@ -1603,6 +1603,7 @@ int main(int argCount, const char* argv[])
     }
 
 _end:
+    vtune_itt_finalize();
     FIO_freePreferences(prefs);
     FIO_freeContext(fCtx);
     if (main_pause) waitEnter();

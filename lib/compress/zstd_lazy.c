@@ -1586,8 +1586,9 @@ ZSTD_compressBlock_lazy_generic(
         /* first search (depth 0) */
         {   size_t offbaseFound = 999999999;
             size_t const ml2 = ZSTD_searchMax(ms, ip, iend, &offbaseFound, mls, rowLog, searchMethod, dictMode);
-            if (ml2 > matchLength)
+            if (ml2 > matchLength){
                 matchLength = ml2, start = ip, offBase = offbaseFound;
+            }
         }
 
         if (matchLength < 4) {
@@ -1693,6 +1694,8 @@ ZSTD_compressBlock_lazy_generic(
 _storeSequence:
         {   size_t const litLength = (size_t)(start - anchor);
             ZSTD_storeSeq(seqStore, litLength, anchor, iend, (U32)offBase, matchLength);
+            vtune_update_dist_histogram(offBase);
+            vtune_update_match_length_histogram(matchLength);
             anchor = ip = start + matchLength;
         }
 
