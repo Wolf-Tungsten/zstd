@@ -55,8 +55,16 @@ void vtune_update_match_length_histogram(uint32_t match_length)
 
 void vtune_itt_finalize(void)
 {
-    __itt_histogram* itt_dist_histogram = __itt_histogram_create(itt_domain_lz77Histogram, "dist", __itt_metadata_u32, __itt_metadata_u64);
-    __itt_histogram* itt_match_length_histogram = __itt_histogram_create(itt_domain_lz77Histogram, "match_length", __itt_metadata_u32, __itt_metadata_u64);
-    __itt_histogram_submit(itt_dist_histogram, vtune_max_distKB, vtune_dist_histogram_x, vtune_dist_histogram);
-    __itt_histogram_submit(itt_match_length_histogram, vtune_max_match_length, vtune_match_length_histogram_x, vtune_match_length_histogram);
+    // printf("[Dist Histogram] max_distKB = %d]\n", vtune_max_distKB);
+    // for(uint32_t i = 0; i < vtune_max_distKB + 1; i++){
+    //     printf("%d,%d\n", i, vtune_dist_histogram[i]);
+    // }
+    printf("[Match Length Histogram] max_match_length = %d]\n", vtune_max_match_length);
+    for(uint32_t i = 0; i < vtune_max_match_length + 1; i++){
+        printf("%d,%d\n", i, vtune_match_length_histogram[i]);
+    }
+    // __itt_histogram* itt_dist_histogram = __itt_histogram_create(itt_domain_lz77Histogram, "dist", __itt_metadata_u32, __itt_metadata_u64);
+    // __itt_histogram* itt_match_length_histogram = __itt_histogram_create(itt_domain_lz77Histogram, "match_length", __itt_metadata_u32, __itt_metadata_u64);
+    // __itt_histogram_submit(itt_dist_histogram, vtune_max_distKB, vtune_dist_histogram_x, vtune_dist_histogram);
+    // __itt_histogram_submit(itt_match_length_histogram, vtune_max_match_length, vtune_match_length_histogram_x, vtune_match_length_histogram);
 }

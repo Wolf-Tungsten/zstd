@@ -1478,7 +1478,7 @@ ZSTD_adjustCParams_internal(ZSTD_compressionParameters cPar,
     if (srcSize != ZSTD_CONTENTSIZE_UNKNOWN) {
         U32 const dictAndWindowLog = ZSTD_dictAndWindowLog(cPar.windowLog, (U64)srcSize, (U64)dictSize);
         U32 const cycleLog = ZSTD_cycleLog(cPar.chainLog, cPar.strategy);
-        if (cPar.hashLog > dictAndWindowLog+1) cPar.hashLog = dictAndWindowLog+1;
+        if (cPar.hashLog > dictAndWindowLog+1) {} //cPar.hashLog = dictAndWindowLog+1;
         if (cycleLog > dictAndWindowLog)
             cPar.chainLog -= (cycleLog - dictAndWindowLog);
     }

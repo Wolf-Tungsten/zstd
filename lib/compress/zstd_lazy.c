@@ -1312,7 +1312,7 @@ size_t ZSTD_RowFindBestMatch(
             }
         }
     }
-    return ml;
+    return ml ;
 }
 
 
