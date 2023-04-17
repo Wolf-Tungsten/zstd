@@ -14,7 +14,7 @@ LIBZSTD = $(LIBDIR)/libzstd.a
 
 CPPFLAGS+= -I$(LIBDIR) -I$(LIBDIR)/compress -I$(LIBDIR)/common
 
-CFLAGS  ?= -O3
+CFLAGS  ?= -g
 CFLAGS  += -std=gnu99
 DEBUGFLAGS= -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow \
             -Wstrict-aliasing=1 -Wswitch-enum \

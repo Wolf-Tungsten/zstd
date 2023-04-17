@@ -26,11 +26,16 @@ do {                                                    \
     }                                                   \
 } while (0)                                             \
 
+extern SimulatorState ss;
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         printf("Usage: externalSequenceProducer <file>\n");
         return 1;
     }
+
+    ss.isFirstBlock = 1;
+    loadSeqAndIndexFile(argv[1]);
 
     ZSTD_CCtx* const zc = ZSTD_createCCtx();
 
@@ -40,11 +45,24 @@ int main(int argc, char *argv[]) {
     ZSTD_registerSequenceProducer(
         zc,
         &simpleSequenceProducerState,
-        simpleSequenceProducer
+        simulatorSequenceProducer
     );
-
+    //
     {
         size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_enableSeqProducerFallback, 1);
+        CHECK(res);
+    }
+    {
+        size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_compressionLevel, 6);
+        CHECK(res);
+    }
+    {
+        size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_windowLog, 20);
+        CHECK(res);
+    }
+
+    {
+        size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_hashLog, 21);
         CHECK(res);
     }
 
@@ -88,6 +106,7 @@ int main(int argc, char *argv[]) {
         printf("Compression and decompression were successful!\n");
         printf("Original size: %lu\n", srcSize);
         printf("Compressed size: %lu\n", cSize);
+        printf("Compression_Ratio: %.3f\n", (double)srcSize / cSize);
     } else {
         printf("ERROR: input and validation buffers don't match!\n");
         for (size_t i = 0; i < srcSize; i++) {
@@ -103,5 +122,7 @@ int main(int argc, char *argv[]) {
     free(src);
     free(dst);
     free(val);
+    free(ss.seqBuffer);
+    free(ss.indexBuffer);
     return 0;
 }
