@@ -27,6 +27,7 @@
 #include "zstd_ldm.h"
 #include "zstd_compress_superblock.h"
 #include  "../common/bits.h"      /* ZSTD_highbit32 */
+#include <math.h>
 
 /* ***************************************************************
 *  Tuning parameters
@@ -4166,6 +4167,18 @@ ZSTD_compressBlock_splitBlock(ZSTD_CCtx* zc,
     return cSize;
 }
 
+size_t stat_seqCount = 0;
+size_t stat_repCount = 0;
+size_t stat_blockCount = 0;
+size_t stat_offset1KHistogram[4096 + 1];
+size_t const MAX_OFFSET = 1 << 22;
+size_t* stat_offsetHistogram_ptr = NULL;
+size_t const MAX_LIT_LEN = 1 << 11;
+size_t* stat_litLengthHistogram_ptr = NULL;
+size_t const MAX_MATCH_LEN = 1 << 10;
+size_t* stat_matchLengthHistogram_ptr = NULL;
+double stat_litLenSum = 0;
+
 static size_t
 ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
                             void* dst, size_t dstCapacity,
@@ -4192,6 +4205,26 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
         ZSTD_copyBlockSequences(zc);
         ZSTD_blockState_confirmRepcodesAndEntropyTables(&zc->blockState);
         return 0;
+    }
+    
+    // block seq analyze
+    stat_blockCount += 1;
+    for(seqDef* p = zc->seqStore.sequencesStart; p < zc->seqStore.sequences; p++) {
+        stat_seqCount++;
+        if(p->offBase < MAX_OFFSET){
+            stat_offsetHistogram_ptr[p->offBase]++;
+        }
+
+        U16 matchLength = p->mlBase + MINMATCH;
+        if(matchLength < MAX_MATCH_LEN){
+            stat_matchLengthHistogram_ptr[matchLength]++;
+        }
+
+        U16 litLength = p->litLength;
+        stat_litLenSum += litLength;
+        if(litLength < MAX_LIT_LEN){
+            stat_litLengthHistogram_ptr[litLength]++;
+        }
     }
 
     /* encode sequences and literals */
@@ -4354,6 +4387,18 @@ static size_t ZSTD_compress_frameChunk(ZSTD_CCtx* cctx,
     DEBUGLOG(4, "ZSTD_compress_frameChunk (blockSize=%u)", (unsigned)blockSize);
     if (cctx->appliedParams.fParams.checksumFlag && srcSize)
         XXH64_update(&cctx->xxhState, src, srcSize);
+    
+    // init stat
+    stat_seqCount = 0;
+    stat_repCount = 0;
+    stat_blockCount = 0;
+    stat_litLenSum = 0;
+    stat_litLengthHistogram_ptr = malloc(sizeof(size_t) * MAX_LIT_LEN);
+    stat_matchLengthHistogram_ptr = malloc(sizeof(size_t) * MAX_MATCH_LEN);
+    stat_offsetHistogram_ptr = malloc(sizeof(size_t) * MAX_OFFSET);
+    memset(stat_litLengthHistogram_ptr, 0, sizeof(size_t) * MAX_LIT_LEN);
+    memset(stat_matchLengthHistogram_ptr, 0, sizeof(size_t) * MAX_MATCH_LEN);
+    memset(stat_offsetHistogram_ptr, 0, sizeof(size_t) * MAX_OFFSET);
 
     while (remaining) {
         ZSTD_matchState_t* const ms = &cctx->blockState.matchState;
@@ -4415,6 +4460,51 @@ static size_t ZSTD_compress_frameChunk(ZSTD_CCtx* cctx,
     }   }
 
     if (lastFrameChunk && (op>ostart)) cctx->stage = ZSTDcs_ending;
+    // print histogram
+    printf("[Statistic Result]\n");
+    printf("Total number of blocks: %ld\n", stat_blockCount);
+    printf("Total number of seq: %ld\n", stat_seqCount);
+    double litLenEntropy, matchLenEntropy, offsetEntropy;
+    // compute litLenEntropy
+    litLenEntropy = 0;
+    for (int i = 0; i < MAX_LIT_LEN; i++) {
+        if (stat_litLengthHistogram_ptr[i] != 0) {
+            double p = (double)stat_litLengthHistogram_ptr[i] / (double)stat_seqCount;
+            litLenEntropy += (- p * log2(p));
+        }
+    }
+    double litLenIdealCompressedLength = litLenEntropy * stat_seqCount / 8;
+    printf("LitLen Entropy: %lf, ideal compressed length = %lf\n", litLenEntropy, litLenIdealCompressedLength);
+    // compute matchLenEntropy
+    matchLenEntropy = 0;
+    for (int i = 0; i < MAX_MATCH_LEN; i++) {
+        if (stat_matchLengthHistogram_ptr[i] != 0) {
+            double p = (double)stat_matchLengthHistogram_ptr[i] / (double)stat_seqCount;
+            matchLenEntropy += (- p * log2(p));
+        }
+    }
+    double matchLenIdealCompressedLength = matchLenEntropy * stat_seqCount / 8;
+    printf("MatchLen Entropy: %lf, ideal compressed length = %lf\n", matchLenEntropy, matchLenIdealCompressedLength);
+    // compute offsetEntropy
+    offsetEntropy = 0;
+    for (int i = 0; i < MAX_OFFSET; i++) {
+        if (stat_offsetHistogram_ptr[i] != 0) {
+            double p = (double)stat_offsetHistogram_ptr[i] / (double)stat_seqCount;
+            offsetEntropy += (- p * log2(p));
+        }
+    }
+    double offsetIdealCompressedLength = offsetEntropy * stat_seqCount / 8;
+    printf("Offset Entropy: %lf, ideal compressed length = %lf\n", offsetEntropy, offsetIdealCompressedLength);
+    double seqEntropy = litLenEntropy + matchLenEntropy + offsetEntropy;
+    double idealSeqCompressedLength = litLenIdealCompressedLength + matchLenIdealCompressedLength + offsetIdealCompressedLength;
+    printf("Seq Entropy: %lf, ideal compressed length = %lf\n", seqEntropy, idealSeqCompressedLength);
+    printf("LitLen Sum: %lf\n", stat_litLenSum);
+    double idealLitLenCompressedLength = stat_litLenSum * 6.7 / 8;
+    double idealCompressedLength = idealLitLenCompressedLength + idealSeqCompressedLength;
+    printf("Ideal Compressed Length: %lf, ratio: %lf\n", idealCompressedLength, idealCompressedLength / (double)(op - ostart));
+    free(stat_litLengthHistogram_ptr);
+    free(stat_matchLengthHistogram_ptr);
+    free(stat_offsetHistogram_ptr);
     return (size_t)(op-ostart);
 }
 

@@ -14,8 +14,9 @@
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
 #include "stdint.h"
+#include "stdio.h"
 
-#define SIMULATOR_SLICE_LOG 9
+#define SIMULATOR_SLICE_LOG 15
 #define SIMULATOR_SLICE_SIZE (1 << SIMULATOR_SLICE_LOG)
 
 typedef struct {
@@ -54,6 +55,18 @@ size_t simulatorSequenceProducer(
   size_t windowSize
 );
 
+typedef struct  {
+  FILE* fd;
+  int headLitLen;
+} SimpleSimulatorSequenceProducerState;
 
+size_t simpleSimulatorSequenceProducer(
+  void* sequenceProducerState,
+  ZSTD_Sequence* outSeqs, size_t outSeqsCapacity,
+  const void* src, size_t srcSize,
+  const void* dict, size_t dictSize,
+  int compressionLevel,
+  size_t windowSize
+);
 
 #endif

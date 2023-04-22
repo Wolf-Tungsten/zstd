@@ -34,18 +34,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    ss.isFirstBlock = 1;
-    loadSeqAndIndexFile(argv[1]);
-
     ZSTD_CCtx* const zc = ZSTD_createCCtx();
 
-    int simpleSequenceProducerState = 0xdeadbeef;
+    //int simpleSequenceProducerState = 0xdeadbeef;
+    static SimpleSimulatorSequenceProducerState simpleSequenceProducerState;
+
+    // load seq file
+    char filepath[1024];
+    sprintf(filepath, "%s.seq", argv[1]);
+    simpleSequenceProducerState.fd = fopen(filepath, "rb");
+    if (simpleSequenceProducerState.fd == NULL) {
+        printf("Error: cannot open file %s\n", filepath);
+        exit(1);
+    }
+    simpleSequenceProducerState.headLitLen = 0;
 
     // Here is the crucial bit of code!
     ZSTD_registerSequenceProducer(
         zc,
         &simpleSequenceProducerState,
-        simulatorSequenceProducer
+        simpleSimulatorSequenceProducer
     );
     //
     {
@@ -62,7 +70,7 @@ int main(int argc, char *argv[]) {
     }
 
     {
-        size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_hashLog, 21);
+        size_t const res = ZSTD_CCtx_setParameter(zc, ZSTD_c_searchForExternalRepcodes, ZSTD_ps_enable);
         CHECK(res);
     }
 
@@ -94,11 +102,11 @@ int main(int argc, char *argv[]) {
     size_t const cSize = ZSTD_compress2(zc, dst, dstSize, src, srcSize);
     CHECK(cSize);
 
-    char* const val = malloc(srcSize);
+    char* const val = malloc(srcSize * 3);
     assert(val);
 
     {
-        size_t const res = ZSTD_decompress(val, srcSize, dst, cSize);
+        size_t const res = ZSTD_decompress(val, srcSize * 3, dst, cSize);
         CHECK(res);
     }
 
@@ -122,7 +130,6 @@ int main(int argc, char *argv[]) {
     free(src);
     free(dst);
     free(val);
-    free(ss.seqBuffer);
-    free(ss.indexBuffer);
+    fclose(simpleSequenceProducerState.fd);
     return 0;
 }

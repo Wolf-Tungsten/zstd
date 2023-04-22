@@ -1561,6 +1561,7 @@ ZSTD_compressBlock_lazy_generic(
         size_t matchLength=0;
         size_t offBase = REPCODE1_TO_OFFBASE;
         const BYTE* start=ip+1;
+        printf("[lazy_generic] search at in block address: %ld\n", ip - istart);
         DEBUGLOG(7, "search baseline (depth 0)");
 
         /* check repCode */
@@ -1580,20 +1581,29 @@ ZSTD_compressBlock_lazy_generic(
         if ( dictMode == ZSTD_noDict
           && ((offset_1 > 0) & (MEM_read32(ip+1-offset_1) == MEM_read32(ip+1)))) {
             matchLength = ZSTD_count(ip+1+4, ip+1+4-offset_1, iend) + 4;
+            printf("\033[37;45m[lazy_generic] RepCode at offset_1 gives me a match starts at %ld length: %ld, offset: %ld, goto _storeSequence.\033[0m\n", ip-istart+1, matchLength, offset_1);
             if (depth==0) goto _storeSequence;
         }
 
         /* first search (depth 0) */
         {   size_t offbaseFound = 999999999;
+            if(ip-istart == 99){
+                printf("debug here");
+            }
             size_t const ml2 = ZSTD_searchMax(ms, ip, iend, &offbaseFound, mls, rowLog, searchMethod, dictMode);
-            if (ml2 > matchLength)
+            printf("[lazy_generic] SearchMax gives me a match starts at %ld length: %ld, offset base: %ld, ", ip-istart, ml2, OFFBASE_TO_OFFSET(offbaseFound));
+            if (ml2 > matchLength){
                 matchLength = ml2, start = ip, offBase = offbaseFound;
+            } 
         }
 
         if (matchLength < 4) {
+            printf("but it is not long enough, move %d bytes forward to continue.\n", ((ip-anchor) >> kSearchStrength) + 1);
             ip += ((ip-anchor) >> kSearchStrength) + 1;   /* jump faster over incompressible sections */
             continue;
         }
+
+        printf("and it is long enough.\n");
 
         /* let's try to find a better solution */
         if (depth>=1)
@@ -1676,11 +1686,18 @@ ZSTD_compressBlock_lazy_generic(
          */
         /* catch up */
         if (OFFBASE_IS_OFFSET(offBase)) {
+            printf("[lazy generic] Catch up");
+            if(start != ip) {
+                printf("[lazy generic] start != ip\n");
+                exit(1);
+            }
+            int catchUpLen = 0;
             if (dictMode == ZSTD_noDict) {
                 while ( ((start > anchor) & (start - OFFBASE_TO_OFFSET(offBase) > prefixLowest))
                      && (start[-1] == (start-OFFBASE_TO_OFFSET(offBase))[-1]) )  /* only search for offset within prefix */
-                    { start--; matchLength++; }
+                    { start--; matchLength++; catchUpLen++;}
             }
+            printf(" %d bytes backward, update offset\n", catchUpLen);
             if (isDxS) {
                 U32 const matchIndex = (U32)((size_t)(start-base) - OFFBASE_TO_OFFSET(offBase));
                 const BYTE* match = (matchIndex < prefixLowestIndex) ? dictBase + matchIndex - dictIndexDelta : base + matchIndex;
@@ -1692,6 +1709,7 @@ ZSTD_compressBlock_lazy_generic(
         /* store sequence */
 _storeSequence:
         {   size_t const litLength = (size_t)(start - anchor);
+            printf("\033[30;43m[lazy_generic] store a sequence: litLength=%zu, matchLength=%zu, offset=%zu(%zu)\033[0m, move forward to %zu\n", litLength, matchLength, (OFFBASE_IS_REPCODE(offBase) ? offBase : OFFBASE_TO_OFFSET(offBase)), offBase, start - istart + matchLength);
             ZSTD_storeSeq(seqStore, litLength, anchor, iend, (U32)offBase, matchLength);
             anchor = ip = start + matchLength;
         }
@@ -1724,6 +1742,7 @@ _storeSequence:
                 /* store sequence */
                 matchLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
                 offBase = offset_2; offset_2 = offset_1; offset_1 = (U32)offBase; /* swap repcodes */
+                printf("\033[30;46m[lazy_generic] Offset2 gives a match, store a sequence: litLength=%zu, matchLength=%zu, offset=%zu\033[0m, update offset, move forward to %zu\n", 0, matchLength, offset_2, ip - istart + matchLength);
                 ZSTD_storeSeq(seqStore, 0, anchor, iend, REPCODE1_TO_OFFBASE, matchLength);
                 ip += matchLength;
                 anchor = ip;
