@@ -111,7 +111,7 @@ void loadSeqAndIndexFile(const char* srcFilePath){
   fsize = ftell(f);
   fseek(f, 0, SEEK_SET);
   ss.indexBuffer = (uint64_t*)malloc(fsize);
-  ss.indexAmount = fsize / sizeof(uint64_t) - 1;
+  ss.indexAmount = fsize / sizeof(uint64_t);
   fread(ss.indexBuffer, sizeof(uint64_t), ss.indexAmount, f);
   fclose(f);
 }
@@ -153,9 +153,15 @@ size_t simulatorSequenceProducer(
         ss.isFirstBlock = 0;
         ss.firstBlockStartPtr = src;
     }
+
+    if(ss.prevBlockSize > srcSize) {
+        printf("last block");
+    }
+
     ss.prevBlockStartPtr = src;
     ss.prevBlockSize = srcSize;
 
+    
     size_t seqCount = 0;
     size_t encodeLength = 0;
 
@@ -175,7 +181,7 @@ size_t simulatorSequenceProducer(
     ZSTD_Sequence seq;
     int concatLitLen = 0;
     for(size_t i = indexPos; i < indexPos + indexCount; i++){
-        if(i >= ss.indexAmount) {
+        if(i > ss.indexAmount) {
             // no enough slice, output remain as literal
             assert(encodeLength < srcSize);
             ZSTD_Sequence const finalSeq = {
@@ -208,6 +214,9 @@ size_t simulatorSequenceProducer(
             for(size_t j = index.prevSeqAmount + 1; j < nextIndex.prevSeqAmount; j++){
                 getSeqAtPos(j, &outSeqs[seqCount++]);
                 debugSliceEncodeLength += (outSeqs[seqCount-1].litLength + outSeqs[seqCount-1].matchLength);
+            }
+            if(debugSliceEncodeLength != index.encodeLength){
+                printf("debug here");
             }
             assert(debugSliceEncodeLength == index.encodeLength);
         }
@@ -268,7 +277,7 @@ size_t simulatorSequenceProducer(
                 int overlapLen = index.encodeLength - SIMULATOR_SLICE_SIZE;
                 while(overlapLen > 0) {
                     seqCount--;
-                    if(outSeqs[seqCount].matchLength - 5 > overlapLen) {
+                    if(outSeqs[seqCount].matchLength - 4 > overlapLen) {
                         // only need to trim the last match's matchLength
                         outSeqs[seqCount].matchLength -= overlapLen;
                         overlapLen = 0;

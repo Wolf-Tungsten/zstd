@@ -15,7 +15,7 @@
 #include "zstd.h"
 #include "stdint.h"
 
-#define SIMULATOR_SLICE_LOG 9
+#define SIMULATOR_SLICE_LOG 13
 #define SIMULATOR_SLICE_SIZE (1 << SIMULATOR_SLICE_LOG)
 
 typedef struct {
