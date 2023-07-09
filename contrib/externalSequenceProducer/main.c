@@ -26,10 +26,9 @@ do {                                                    \
     }                                                   \
 } while (0)                                             \
 
-extern SimulatorState ss;
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
+    if (argc != 3) {
         printf("Usage: externalSequenceProducer <file>\n");
         return 1;
     }
@@ -41,7 +40,7 @@ int main(int argc, char *argv[]) {
 
     // load seq file
     char filepath[1024];
-    sprintf(filepath, "%s.seq", argv[1]);
+    sprintf(filepath, "%s", argv[2]);
     simpleSequenceProducerState.fd = fopen(filepath, "rb");
     if (simpleSequenceProducerState.fd == NULL) {
         printf("Error: cannot open file %s\n", filepath);
