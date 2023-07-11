@@ -28,6 +28,8 @@ else
   ALIGN_LOOP =
 endif
 
+
+
 ZSTDLIB_COMMON_SRC := $(sort $(ZSTD_COMMON_FILES))
 ZSTDLIB_COMPRESS_SRC := $(sort $(ZSTD_COMPRESS_FILES))
 ZSTDLIB_DECOMPRESS_SRC := $(sort $(ZSTD_DECOMPRESS_FILES))
@@ -133,11 +135,12 @@ all: zstd zstd-compress zstd-decompress zstd-small
 
 .PHONY: allVariants
 allVariants: all zstd-frugal zstd-nolegacy zstd-dictBuilder
-
+#vtune flags
+VTUNE_FLAGS = -I /opt/intel/oneapi/vtune/2023.0.0/sdk/include -L /opt/intel/oneapi/vtune/2023.0.0/sdk/lib64 -littnotify -ldl
 .PHONY: zstd  # must always be run
-zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP)
-zstd : LDFLAGS += $(THREAD_LD) $(DEBUGFLAGS_LD)
-zstd : LDLIBS += $(ZLIBLD) $(LZMALD) $(LZ4LD)
+zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP) $(VTUNE_FLAGS)
+zstd : LDFLAGS += $(THREAD_LD) $(DEBUGFLAGS_LD) $(VTUNE_FLAGS)
+zstd : LDLIBS += $(ZLIBLD) $(LZMALD) $(LZ4LD)  $(VTUNE_FLAGS)
 zstd : CPPFLAGS += -DZSTD_LEGACY_SUPPORT=$(ZSTD_LEGACY_SUPPORT)
 ifneq (,$(filter Windows%,$(OS)))
 zstd : $(RES_FILE)

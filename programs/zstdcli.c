@@ -34,6 +34,7 @@
 #include <stdio.h>    /* fprintf(), stdin, stdout, stderr */
 #include <errno.h>    /* errno */
 #include <assert.h>   /* assert */
+#include "../lib/common/vtune_itt.h"
 
 #include "fileio.h"   /* stdinmark, stdoutmark, ZSTD_EXTENSION */
 #ifndef ZSTD_NOBENCH
@@ -830,6 +831,7 @@ typedef enum { zom_compress, zom_decompress, zom_test, zom_bench, zom_train, zom
 
 int main(int argCount, const char* argv[])
 {
+    vtune_itt_init();
     int argNb,
         followLinks = 0,
         allowBlockDevices = 0,
@@ -1612,6 +1614,6 @@ _end:
 #ifndef ZSTD_NOTRACE
     TRACE_finish();
 #endif
-
+    vtune_itt_done();
     return operationResult;
 }

@@ -28,6 +28,7 @@
 #if defined (__cplusplus)
 extern "C" {
 #endif
+#include "../common/vtune_itt.h"
 
 /*-*************************************
 *  Constants
@@ -698,6 +699,7 @@ ZSTD_storeSeq(seqStore_t* seqStorePtr,
 
     /* match Length */
     assert(matchLength >= MINMATCH);
+    update_match_length_histogram(matchLength); //GRH
     {   size_t const mlBase = matchLength - MINMATCH;
         if (mlBase>0xFFFF) {
             assert(seqStorePtr->longLengthType == ZSTD_llt_none); /* there can only be a single long length */

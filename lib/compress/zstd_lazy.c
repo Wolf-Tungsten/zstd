@@ -11,6 +11,7 @@
 #include "zstd_compress_internal.h"
 #include "zstd_lazy.h"
 #include "../common/bits.h" /* ZSTD_countTrailingZeros64 */
+#include "../common/vtune_itt.h"
 
 #define kLazySkippingStep 8
 
@@ -1698,6 +1699,7 @@ ZSTD_compressBlock_lazy_generic(
         /* store sequence */
 _storeSequence:
         {   size_t const litLength = (size_t)(start - anchor);
+            update_dist_histogram(OFFBASE_TO_OFFSET(offBase));
             ZSTD_storeSeq(seqStore, litLength, anchor, iend, (U32)offBase, matchLength);
             anchor = ip = start + matchLength;
         }
@@ -1737,6 +1739,7 @@ _storeSequence:
                 /* store sequence */
                 matchLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
                 offBase = offset_2; offset_2 = offset_1; offset_1 = (U32)offBase; /* swap repcodes */
+                update_dist_histogram(offBase); //GRH
                 ZSTD_storeSeq(seqStore, 0, anchor, iend, REPCODE1_TO_OFFBASE, matchLength);
                 ip += matchLength;
                 anchor = ip;

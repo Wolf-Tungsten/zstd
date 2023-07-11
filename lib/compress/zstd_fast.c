@@ -10,6 +10,7 @@
 
 #include "zstd_compress_internal.h"  /* ZSTD_hashPtr, ZSTD_count, ZSTD_storeSeq */
 #include "zstd_fast.h"
+#include "../common/vtune_itt.h"
 
 static void ZSTD_fillHashTableForCDict(ZSTD_matchState_t* ms,
                         const void* const end,
@@ -360,6 +361,7 @@ _offset: /* Requires: ip0, idx */
     rep_offset2 = rep_offset1;
     rep_offset1 = (U32)(ip0-match0);
     offcode = OFFSET_TO_OFFBASE(rep_offset1);
+    update_dist_histogram(rep_offset1); // GRH
     mLength = 4;
 
     /* Count the backwards match length. */
