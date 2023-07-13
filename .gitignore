@@ -53,3 +53,6 @@ compile_commands.json
 .clangd
 perf.data
 perf.data.old
+contrib/externalSequenceProducer/lz77_model/__pycache__
+contrib/externalSequenceProducer/lz77_model/*.pyc
+contrib/externalSequenceProducer/lz77_model/output_tmp
