@@ -1,0 +1,1 @@
+export INTEL_LIBITTNOTIFY64=/opt/intel/oneapi/vtune/2023.0.0/lib64/runtime/libittnotify_collector.so

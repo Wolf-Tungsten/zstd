@@ -1,4 +1,4 @@
-#include <ittnotify.h>
+#include "vtune_itt.h"
 #include <stdlib.h>
 
 __itt_domain* vtune_dist_histogram_domain;
@@ -7,8 +7,8 @@ int max_dist_kb = 2048;
 uint64_t* vtune_dist_histogram_x;
 uint64_t* vtune_dist_histogram_y;
 uint64_t seq_count;
-uint64_t vtune_dist_histogram_seg_x[5] = {1, 32, 512, 1024, 2048};
-uint64_t vtune_dist_histogram_seg_y[5] = {0, 0, 0, 0, 0};
+uint64_t vtune_dist_histogram_seg_x[6] = {1, 32, 64, 512, 1024, 2048};
+uint64_t vtune_dist_histogram_seg_y[6] = {0, 0, 0, 0, 0, 0};
 double vtune_dist_histogram_seg_ratio_y[5];
 __itt_domain* vtune_match_length_histogram_domain;
 int max_match_length = 2048;
@@ -43,12 +43,12 @@ void vtune_itt_done(void){
     free(vtune_dist_histogram_x);
     free(vtune_dist_histogram_y);
     __itt_histogram* dist_histogram_seg = __itt_histogram_create(vtune_dist_histogram_domain, "dist_histogram_seg", __itt_metadata_u64, __itt_metadata_u64);
-    __itt_histogram_submit(dist_histogram_seg, 5, vtune_dist_histogram_seg_x, vtune_dist_histogram_seg_y);
-    for(int i=0; i<5; i++){
+    __itt_histogram_submit(dist_histogram_seg, 6, vtune_dist_histogram_seg_x, vtune_dist_histogram_seg_y);
+    for(int i=0; i<6; i++){
         vtune_dist_histogram_seg_ratio_y[i] = ((double)vtune_dist_histogram_seg_y[i]) / seq_count * 100 * 1000;
     }
     __itt_histogram* dist_histogram_seg_ratio = __itt_histogram_create(vtune_dist_histogram_domain, "dist_histogram_ratio", __itt_metadata_u64, __itt_metadata_double);
-    __itt_histogram_submit(dist_histogram_seg_ratio, 5, vtune_dist_histogram_seg_x, vtune_dist_histogram_seg_ratio_y);
+    __itt_histogram_submit(dist_histogram_seg_ratio, 6, vtune_dist_histogram_seg_x, vtune_dist_histogram_seg_ratio_y);
 
     __itt_histogram* match_length_histogram = __itt_histogram_create(vtune_match_length_histogram_domain, "match_length_histogram", __itt_metadata_u64, __itt_metadata_u64);
     __itt_histogram_submit(match_length_histogram, max_match_length+2, vtune_match_length_histogram_x, vtune_match_length_histogram_y);
@@ -72,8 +72,10 @@ void update_dist_histogram(uint64_t offset) {
         vtune_dist_histogram_seg_y[2]++;
     } else if(offset >> 10 < vtune_dist_histogram_seg_x[3]){
         vtune_dist_histogram_seg_y[3]++;
-    } else {
+    } else if(offset >> 10 < vtune_dist_histogram_seg_x[4]){
         vtune_dist_histogram_seg_y[4]++;
+    } else {
+        vtune_dist_histogram_seg_y[5]++;
     }
     
 
