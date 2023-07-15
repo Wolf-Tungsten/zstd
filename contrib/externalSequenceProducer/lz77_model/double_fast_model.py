@@ -1,26 +1,13 @@
 from hash_func import hash_func
-
-class DoubleFastModel(object):
-    def __init__(self, input_reader, seq_writter, window_log, hash_cover_bytes,large_hash_bits, small_hash_bits, min_match_len):
-        self.input_reader = input_reader
-        self.seq_writter = seq_writter
-        self.hash_cover_bytes = hash_cover_bytes
+from lz77_base_model import LZ77BaseModel
+import tqdm
+class DoubleFastModel(LZ77BaseModel):
+    def __init__(self, input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, large_hash_bits, small_hash_bits):
+        LZ77BaseModel.__init__(self, input_reader=input_reader, seq_writter=seq_writter, window_log=window_log, hash_cover_bytes=hash_cover_bytes, min_match_len=min_match_len, max_match_len=1<<16)
         self.large_hash_bits = large_hash_bits
         self.small_hash_bits = small_hash_bits
-        self.window_size = 1 << window_log
-        self.min_match_len = min_match_len
-
         self.large_hash_table = {}
         self.small_hash_table = {}
-        self.input_data = self.input_reader.read()
-        self.input_length = len(self.input_data)
-        self.ilimit = self.input_length - self.hash_cover_bytes
-
-    def count_match_length(self, ip, history_addr):
-        match_length = 0
-        while ip + match_length < self.input_length and self.input_data[ip + match_length] == self.input_data[history_addr + match_length] :
-            match_length += 1
-        return match_length
 
     def check_large_hash_table(self, ip, hash_l):
         if hash_l in self.large_hash_table:
@@ -43,26 +30,31 @@ class DoubleFastModel(object):
     def process(self):
         ip = 0
         prev_ip = 0
-        while ip < self.ilimit:
-            hash_l = hash_func(self.input_data[ip:ip+self.hash_cover_bytes], self.large_hash_bits)
-            hash_s = hash_func(self.input_data[ip:ip+self.min_match_len], self.small_hash_bits)
-            offset, ml = self.check_large_hash_table(ip, hash_l)
-            if offset == 0:
-                offset, ml = self.check_small_hash_table(ip, hash_s)
-            
-            if offset > 0:
-                self.seq_writter.write_seq(offset, ip - prev_ip, ml)
-                for i in range(ml):
-                    hash_l = hash_func(self.input_data[ip+i:ip+i+self.hash_cover_bytes], self.large_hash_bits)
-                    hash_s = hash_func(self.input_data[ip+i:ip+i+self.min_match_len], self.small_hash_bits)
-                    self.large_hash_table[hash_l] = ip + i
-                    self.small_hash_table[hash_s] = ip + i
-                prev_ip = ip + ml
-                ip += ml
-            else:
-                self.large_hash_table[hash_l] = ip
-                self.small_hash_table[hash_s] = ip
-                ip += 1
+        with tqdm.tqdm(total=self.ilimit) as pbar:
+            while ip < self.ilimit:
+                hash_l = hash_func(self.input_data[ip:ip+self.hash_cover_bytes], self.large_hash_bits)
+                hash_s = hash_func(self.input_data[ip:ip+self.min_match_len], self.small_hash_bits)
+                assert(hash_l < 1<<self.large_hash_bits)
+                assert(hash_s < 1<<self.small_hash_bits)
+                offset, ml = self.check_large_hash_table(ip, hash_l)
+                if offset == 0:
+                    offset, ml = self.check_small_hash_table(ip, hash_s)
+                
+                if offset > 0:
+                    self.seq_writter.write_seq(offset, ip - prev_ip, ml)
+                    for i in range(1):
+                        hash_l = hash_func(self.input_data[ip+i:ip+i+self.hash_cover_bytes], self.large_hash_bits)
+                        hash_s = hash_func(self.input_data[ip+i:ip+i+self.min_match_len], self.small_hash_bits)
+                        self.large_hash_table[hash_l] = ip + i
+                        self.small_hash_table[hash_s] = ip + i
+                    prev_ip = ip + ml
+                    ip += ml
+                    pbar.update(ml)
+                else:
+                    self.large_hash_table[hash_l] = ip
+                    self.small_hash_table[hash_s] = ip
+                    ip += 1
+                    pbar.update(1)
 
                     
 

@@ -10,7 +10,6 @@ if __name__ == '__main__':
 
     parser.add_argument('input_file_path')
     parser.add_argument('output_seq_path')
-
     args = parser.parse_args()
 
     input_reader = InputReader(args.input_file_path)

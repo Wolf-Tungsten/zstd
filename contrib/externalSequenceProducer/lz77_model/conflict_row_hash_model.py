@@ -1,36 +1,23 @@
-from lz77_base_model import LZ77BaseModel
-from hash_func import hash_func
+from row_hash_model import RowHashModel
 import tqdm
-from seq_checker import SeqChecker
 
-
-class RowHashModel(LZ77BaseModel):
-    def __init__(self, input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, hash_log, row_log, tag_bits, nb_attempts):
-        LZ77BaseModel.__init__(self, input_reader=input_reader, seq_writter=seq_writter,
-                               window_log=window_log, hash_cover_bytes=hash_cover_bytes, min_match_len=min_match_len, max_match_len=(1<<16))
-
-        self.hash_log = hash_log
-        self.row_log = row_log
-        self.tag_bits = tag_bits
-        self.nb_attempts = nb_attempts
-        self.row_size = 1 << self.row_log
-
-        self.hash_bits = hash_log - row_log + tag_bits
-        self.hash_table = {}
-        self.seq_checker = SeqChecker(self.input_data)
-
-    def row_tag_hash(self, ip):
-        original_hash_value = hash_func(
-            self.input_data[ip:ip+self.hash_cover_bytes], self.hash_bits)
-        tag = original_hash_value & ((1 << self.tag_bits) - 1)
-        row = (original_hash_value >> self.tag_bits) & (
-            (1 << (self.hash_log - self.row_log)) - 1)
-        return row, tag
-
-    def update_hash_row(self, hash_row, ip, tag):
-        hash_row.insert(0, (ip, tag))
-        if len(hash_row) > self.row_size:
-            hash_row.pop(len(hash_row) - 1)
+class ConflictRowHashModel(RowHashModel):
+    def __init__(self,  input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, hash_log, row_log, tag_bits, nb_attempts, bank_log, parallel_width):
+        RowHashModel.__init__(self, input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, hash_log, row_log, tag_bits, nb_attempts)
+        self.bank_log = bank_log
+        self.parallel_width = parallel_width
+        self.conflict_table = {}
+    
+    def check_conflict(self, row_idx, ip):
+        if ip % self.parallel_width == 0:
+            self.conflict_table = {}
+        # take the high bank_log bits of row_idx as the bank index
+        bank_idx = row_idx >> (self.hash_log - self.row_log - self.bank_log)
+        if bank_idx not in self.conflict_table:
+            self.conflict_table[bank_idx] = {}
+            return False
+        else:
+            return True
 
     def process(self):
         ip = 0
@@ -38,6 +25,11 @@ class RowHashModel(LZ77BaseModel):
         with tqdm.tqdm(total=self.ilimit) as pbar:
             while ip < self.ilimit:
                 row_idx, tag = self.row_tag_hash(ip)
+                if self.check_conflict(row_idx, ip):
+                    # has hash conflict, just skip it
+                    ip += 1
+                    pbar.update(1)
+                    continue
                 if row_idx not in self.hash_table:
                     self.hash_table[row_idx] = []
                 hash_row = self.hash_table[row_idx]
@@ -59,6 +51,8 @@ class RowHashModel(LZ77BaseModel):
                         offset, ip - prev_ip, match_length)
                     for i in range(match_length):
                         row_idx, tag = self.row_tag_hash(ip + i)
+                        if self.check_conflict(row_idx, ip + i):
+                            continue
                         if row_idx not in self.hash_table:
                             self.hash_table[row_idx] = []
                         self.update_hash_row(

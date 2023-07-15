@@ -24,8 +24,8 @@ def hash_func(raw_bytes, output_bits):
     prime = [0, 0, 0, 506832829, 2654435761, 889523592379, 227718039650203, 58295818150454627, 0xCF1BBCDCB7A56463]
     input_bytes = len(raw_bytes)
     if input_bytes <= 4:
-        return raw_bytes_int * prime[input_bytes] >> (32 - output_bits)
+        return ((raw_bytes_int * prime[input_bytes]) & (0xFFFFFFFF)) >> (32 - output_bits)
     else:
-        return (raw_bytes_int << (64-input_bytes*8)) * prime[input_bytes] >> (64 - output_bits)
+        return (((raw_bytes_int << (64-input_bytes*8)) * prime[input_bytes]) & (0xFFFFFFFFFFFFFFFF)) >> (64 - output_bits)
 
 
