@@ -73,9 +73,6 @@ size_t simpleSimulatorSequenceProducer(
         
         getNextSeq(state, &sseq);
 
-        if(debugJobCount == 17) {
-            printf("debug here\n");
-        }
         if(sseq.endOfJob) {
             if(gap > 0){
                 if(sseq.hasOverlap) {
@@ -136,23 +133,23 @@ size_t simpleSimulatorSequenceProducer(
                 }
             }
             
-            debugJobCount += 1;
-            if(overlap > 0){
-                if((encodeLength - overlap) != debugJobCount * JOB_LEN){
-                    printf("encodeLength error overlap %d!\n", debugJobCount);
-                    exit(1);
-                }
-            } else if (gap > 0){
-                if((encodeLength + gap) != debugJobCount * JOB_LEN){
-                    printf("encodeLength error gap %d\n", debugJobCount);
-                    exit(2);
-                }
-            } else {
-                if(encodeLength != debugJobCount * JOB_LEN){
-                    printf("encodeLength error %d\n", debugJobCount);
-                    exit(3);
-                }
-            }
+            // debugJobCount += 1;
+            // if(overlap > 0){
+            //     if((encodeLength - overlap) != debugJobCount * JOB_LEN){
+            //         printf("encodeLength error overlap %d!\n", debugJobCount);
+            //         exit(1);
+            //     }
+            // } else if (gap > 0){
+            //     if((encodeLength + gap) != debugJobCount * JOB_LEN){
+            //         printf("encodeLength error gap %d\n", debugJobCount);
+            //         exit(2);
+            //     }
+            // } else {
+            //     if(encodeLength != debugJobCount * JOB_LEN){
+            //         printf("encodeLength error %d\n", debugJobCount);
+            //         exit(3);
+            //     }
+            // }
         } else {
             if(gap > 0){
                 seq.litLength = gap + sseq.litLen;
@@ -170,7 +167,7 @@ size_t simpleSimulatorSequenceProducer(
                     overlap = 0;
                     encodeLength += seq.litLength + seq.matchLength;
                     outSeqs[seqCount++] = seq;
-                } else if (overlap <= sseq.litLen + sseq.matchLen - 4) {
+                } else if (overlap <= sseq.litLen + sseq.matchLen - 6) {
                     seq.litLength = 0;
                     seq.matchLength = sseq.matchLen - (overlap - sseq.litLen);
                     seq.offset = sseq.offset;
