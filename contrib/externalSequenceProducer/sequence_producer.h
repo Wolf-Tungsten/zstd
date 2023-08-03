@@ -20,8 +20,8 @@
 #define SIMULATOR_SLICE_SIZE (1 << SIMULATOR_SLICE_LOG)
 
 typedef struct  {
-  FILE* fd;
-  int headLitLen;
+  FILE* seqFd;
+  FILE* indexFd;
 } SimpleSimulatorSequenceProducerState;
 
 size_t simpleSimulatorSequenceProducer(

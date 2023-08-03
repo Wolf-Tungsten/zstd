@@ -28,8 +28,8 @@ do {                                                    \
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Usage: externalSequenceProducer <file>\n");
+    if (argc != 4) {
+        printf("Usage: externalSequenceProducer <originalFile> <seqFile> <indexFile>\n");
         return 1;
     }
 
@@ -38,15 +38,21 @@ int main(int argc, char *argv[]) {
     //int simpleSequenceProducerState = 0xdeadbeef;
     static SimpleSimulatorSequenceProducerState simpleSequenceProducerState;
 
-    // load seq file
     char filepath[1024];
+    // load seq file
     sprintf(filepath, "%s", argv[2]);
-    simpleSequenceProducerState.fd = fopen(filepath, "rb");
-    if (simpleSequenceProducerState.fd == NULL) {
-        printf("Error: cannot open file %s\n", filepath);
+    simpleSequenceProducerState.seqFd = fopen(filepath, "rb");
+    if (simpleSequenceProducerState.seqFd == NULL) {
+        printf("Error: cannot open seq file %s\n", filepath);
         exit(1);
     }
-    simpleSequenceProducerState.headLitLen = 0;
+    // load index file
+    sprintf(filepath, "%s", argv[3]);
+    simpleSequenceProducerState.indexFd = fopen(filepath, "rb");
+    if (simpleSequenceProducerState.indexFd == NULL) {
+        printf("Error: cannot open index file %s\n", filepath);
+        exit(1);
+    }
 
     // Here is the crucial bit of code!
     ZSTD_registerSequenceProducer(
@@ -129,6 +135,7 @@ int main(int argc, char *argv[]) {
     free(src);
     free(dst);
     free(val);
-    fclose(simpleSequenceProducerState.fd);
+    fclose(simpleSequenceProducerState.seqFd);
+    fclose(simpleSequenceProducerState.indexFd);
     return 0;
 }
