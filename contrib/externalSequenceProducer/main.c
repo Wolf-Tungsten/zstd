@@ -116,10 +116,14 @@ int main(int argc, char *argv[]) {
     }
 
     if (memcmp(src, val, srcSize) == 0) {
+        sprintf(filepath, "%s.comp_ratio", argv[1]);
+        FILE *crFd = fopen(filepath, "wb");
         printf("Compression and decompression were successful!\n");
         printf("Original size: %lu\n", srcSize);
         printf("Compressed size: %lu\n", cSize);
         printf("Compression_Ratio: %.3f\n", (double)srcSize / cSize);
+        fprintf(crFd, "%.3f\n", (double)srcSize / cSize);
+        fclose(crFd);
     } else {
         printf("ERROR: input and validation buffers don't match!\n");
         for (size_t i = 0; i < srcSize; i++) {
