@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
@@ -37,22 +38,34 @@ int main(int argc, char *argv[]) {
 
     //int simpleSequenceProducerState = 0xdeadbeef;
     static SimpleSimulatorSequenceProducerState simpleSequenceProducerState;
-
+    simpleSequenceProducerState.seqIdx = 0;
+    simpleSequenceProducerState.blockIdx = 0;
     char filepath[1024];
-    // load seq file
-    sprintf(filepath, "%s", argv[2]);
-    simpleSequenceProducerState.seqFd = fopen(filepath, "rb");
-    if (simpleSequenceProducerState.seqFd == NULL) {
-        printf("Error: cannot open seq file %s\n", filepath);
-        exit(1);
-    }
     // load index file
     sprintf(filepath, "%s", argv[3]);
-    simpleSequenceProducerState.indexFd = fopen(filepath, "rb");
-    if (simpleSequenceProducerState.indexFd == NULL) {
+    FILE* indexFd = fopen(filepath, "rb");
+    if (indexFd == NULL) {
         printf("Error: cannot open index file %s\n", filepath);
         exit(1);
     }
+    fseek(indexFd, 0, SEEK_END);
+    size_t indexAmount = ftell(indexFd) / sizeof(uint32_t);
+    fseek(indexFd, 0, SEEK_SET);
+    simpleSequenceProducerState.index = (uint32_t*)malloc(sizeof(uint32_t) * indexAmount);
+    fread(simpleSequenceProducerState.index, sizeof(uint32_t), indexAmount, indexFd);
+    uint64_t seqAmount = 0;
+    for (size_t i = 0; i < indexAmount; i++) {
+        seqAmount += simpleSequenceProducerState.index[i];
+    }
+    // load seq file
+    sprintf(filepath, "%s", argv[2]);
+    FILE* seqFd = fopen(filepath, "rb");
+    if (seqFd == NULL) {
+        printf("Error: cannot open seq file %s\n", filepath);
+        exit(1);
+    }
+    simpleSequenceProducerState.seqs = (uint64_t*)malloc(sizeof(uint64_t) * seqAmount);
+    fread(simpleSequenceProducerState.seqs, sizeof(uint64_t), seqAmount, seqFd);
 
     // Here is the crucial bit of code!
     ZSTD_registerSequenceProducer(
@@ -104,8 +117,13 @@ int main(int argc, char *argv[]) {
     char* const dst = malloc(dstSize);
     assert(dst);
 
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);
     size_t const cSize = ZSTD_compress2(zc, dst, dstSize, src, srcSize);
     CHECK(cSize);
+    gettimeofday(&t2, NULL);
+    double timeSec = ((t2.tv_sec - t1.tv_sec) * 1000.0 + (t2.tv_usec - t1.tv_usec) / 1000.0)/1000.0;
+    printf("Software compression throughput: %.3f MB/s\n", ((double)srcSize / 1024) / 1024 / timeSec);
 
     char* const val = malloc(srcSize * 3);
     assert(val);
@@ -139,7 +157,8 @@ int main(int argc, char *argv[]) {
     free(src);
     free(dst);
     free(val);
-    fclose(simpleSequenceProducerState.seqFd);
-    fclose(simpleSequenceProducerState.indexFd);
+    free(simpleSequenceProducerState.seqs);
+    fclose(seqFd);
+    fclose(indexFd);
     return 0;
 }

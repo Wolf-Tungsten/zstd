@@ -22,26 +22,27 @@ typedef struct {
     uint8_t matchLen;
 } SimulatorSeq;
 
-uint32_t getBlockSeqCount(SimpleSimulatorSequenceProducerState* state) {
-    uint32_t seqCount;
-    fread(&seqCount, sizeof(int), 1, state->indexFd);
-    return seqCount;
-}
-
-void getNextSeq(SimpleSimulatorSequenceProducerState* state, SimulatorSeq* sseq) {
-   struct {
+typedef struct {
     uint8_t flags;
     uint8_t overlapLen;
     uint16_t litLen;
     uint32_t matchLenAndOffset;
-   } rawSeq;
-   fread(&rawSeq, sizeof(uint64_t), 1, state->seqFd);
-   sseq->endOfJob = rawSeq.flags & 0x04;
-   sseq->hasOverlap = rawSeq.flags & 0x08;
-   sseq->overlapLen = rawSeq.overlapLen;
-   sseq->litLen = rawSeq.litLen;
-   sseq->offset = rawSeq.matchLenAndOffset & 0x0FFFFFF;
-   sseq->matchLen = rawSeq.matchLenAndOffset >> 24;
+} SimRawSeq;
+
+
+SimRawSeq srawSeq;
+SimRawSeq* srawSeqPtr;
+inline void getNextSeq(SimpleSimulatorSequenceProducerState* state, SimulatorSeq* sseq) {
+   //fread(&rawSeq, sizeof(uint64_t), 1, state->seqFd);
+
+   srawSeqPtr = (SimRawSeq*)(state->seqs);
+   srawSeq = srawSeqPtr[state->seqIdx++];
+   sseq->endOfJob = srawSeq.flags & 0x04;
+   sseq->hasOverlap = srawSeq.flags & 0x08;
+   sseq->overlapLen = srawSeq.overlapLen;
+   sseq->litLen = srawSeq.litLen;
+   sseq->offset = srawSeq.matchLenAndOffset & 0x0FFFFFF;
+   sseq->matchLen = srawSeq.matchLenAndOffset >> 24;
 }
 
 size_t simpleSimulatorSequenceProducer(
@@ -59,7 +60,7 @@ size_t simpleSimulatorSequenceProducer(
     (void)outSeqsCapacity;
     (void)compressionLevel;
 
-    int blockSeqCount = getBlockSeqCount(state);
+    int blockSeqCount = state -> index[state->blockIdx++];
     int encodeLength = 0;
     int seqCount = 0;
     int gap = 0;
@@ -67,7 +68,6 @@ size_t simpleSimulatorSequenceProducer(
     ZSTD_Sequence seq;
     SimulatorSeq sseq;
 
-    int debugJobCount = 0;
     // normal loop
     for(int i = 0; i < blockSeqCount - 1; i++) {
         
@@ -188,10 +188,10 @@ size_t simpleSimulatorSequenceProducer(
                 outSeqs[seqCount++] = seq;
             }
         }
-        if(encodeLength > srcSize){
-            printf("overflow encodeLength=%d, srcSize=%ld\n", encodeLength, srcSize);
-            exit(1);
-        }
+        // if(encodeLength > srcSize){
+        //     printf("overflow encodeLength=%d, srcSize=%ld\n", encodeLength, srcSize);
+        //     exit(1);
+        // }
     }
 
 
