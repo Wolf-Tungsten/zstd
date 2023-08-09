@@ -361,7 +361,7 @@ _offset: /* Requires: ip0, idx */
     rep_offset2 = rep_offset1;
     rep_offset1 = (U32)(ip0-match0);
     offcode = OFFSET_TO_OFFBASE(rep_offset1);
-    update_dist_histogram(rep_offset1); // GRH
+    // update_dist_histogram(rep_offset1); // GRH
     mLength = 4;
 
     /* Count the backwards match length. */

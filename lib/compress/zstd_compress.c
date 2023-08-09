@@ -28,6 +28,7 @@
 #include "zstd_ldm.h"
 #include "zstd_compress_superblock.h"
 #include  "../common/bits.h"      /* ZSTD_highbit32, ZSTD_rotateRight_U64 */
+#include "../common/vtune_itt.h"   /* VTUNE_TASK */
 
 /* ***************************************************************
 *  Tuning parameters
@@ -4226,6 +4227,7 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
      * This isn't the actual upper bound.
      * Finding the real threshold needs further investigation.
      */
+    __itt_task_begin(vtune_lz77_ratio_domain, __itt_null, __itt_null, vtune_compress_block_handle);
     const U32 rleMaxLength = 25;
     size_t cSize;
     const BYTE* ip = (const BYTE*)src;
@@ -4233,7 +4235,8 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
     DEBUGLOG(5, "ZSTD_compressBlock_internal (dstCapacity=%u, dictLimit=%u, nextToUpdate=%u)",
                 (unsigned)dstCapacity, (unsigned)zc->blockState.matchState.window.dictLimit,
                 (unsigned)zc->blockState.matchState.nextToUpdate);
-
+    // GRH
+    __itt_task_begin(vtune_lz77_ratio_domain, __itt_null, __itt_null, vtune_lz77_task_handle);
     {   const size_t bss = ZSTD_buildSeqStore(zc, src, srcSize);
         FORWARD_IF_ERROR(bss, "ZSTD_buildSeqStore failed");
         if (bss == ZSTDbss_noCompress) { cSize = 0; goto out; }
@@ -4244,7 +4247,10 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
         ZSTD_blockState_confirmRepcodesAndEntropyTables(&zc->blockState);
         return 0;
     }
+    __itt_task_end(vtune_lz77_ratio_domain);
 
+
+    __itt_task_begin(vtune_lz77_ratio_domain, __itt_null, __itt_null, vtune_entenc_task_handle);
     /* encode sequences and literals */
     cSize = ZSTD_entropyCompressSeqStore(&zc->seqStore,
             &zc->blockState.prevCBlock->entropy, &zc->blockState.nextCBlock->entropy,
@@ -4253,6 +4259,7 @@ ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
             srcSize,
             zc->entropyWorkspace, ENTROPY_WORKSPACE_SIZE /* statically allocated in resetCCtx */,
             zc->bmi2);
+    __itt_task_end(vtune_lz77_ratio_domain);
 
     if (frame &&
         /* We don't want to emit our first block as a RLE even if it qualifies because
@@ -4278,6 +4285,7 @@ out:
     if (zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode == FSE_repeat_valid)
         zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode = FSE_repeat_check;
 
+    __itt_task_end(vtune_lz77_ratio_domain);
     return cSize;
 }
 

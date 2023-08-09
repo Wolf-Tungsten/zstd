@@ -179,7 +179,7 @@ size_t ZSTD_compressBlock_doubleFast_noDict_generic(
                 mLength = ZSTD_count(ip+1+4, ip+1+4-offset_1, iend) + 4;
                 ip++;
                 ZSTD_storeSeq(seqStore, (size_t)(ip-anchor), anchor, iend, REPCODE1_TO_OFFBASE, mLength);
-                update_dist_histogram(offset_1); // GRH
+                // update_dist_histogram(offset_1); // GRH
                 goto _match_stored;
             }
 
@@ -268,7 +268,7 @@ _match_found: /* requires ip, offset, mLength */
              * (initially) is less than 4, we know ip1 < new ip. */
             hashLong[hl1] = (U32)(ip1 - base);
         }
-        update_dist_histogram(offset); // GRH
+        // update_dist_histogram(offset); // GRH
         ZSTD_storeSeq(seqStore, (size_t)(ip-anchor), anchor, iend, OFFSET_TO_OFFBASE(offset), mLength);
 
 _match_stored:
@@ -292,7 +292,7 @@ _match_stored:
                     & (MEM_read32(ip) == MEM_read32(ip - offset_2)) )) {
                 /* store sequence */
                 size_t const rLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
-                update_dist_histogram(offset_2); // GRH
+                // update_dist_histogram(offset_2); // GRH
                 U32 const tmpOff = offset_2; offset_2 = offset_1; offset_1 = tmpOff;  /* swap offset_2 <=> offset_1 */
                 hashSmall[ZSTD_hashPtr(ip, hBitsS, mls)] = (U32)(ip-base);
                 hashLong[ZSTD_hashPtr(ip, hBitsL, 8)] = (U32)(ip-base);
