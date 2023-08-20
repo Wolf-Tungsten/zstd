@@ -136,7 +136,10 @@ ZSTD_insertDUBT1(const ZSTD_matchState_t* ms,
             DEBUGLOG(8, "ZSTD_insertDUBT1: %u (>btLow=%u) is smaller : next => %u",
                         matchIndex, btLow, nextPtr[1]);
             smallerPtr = nextPtr+1;               /* new "candidate" => larger than match, which was smaller than target */
-            matchIndex = nextPtr[1];              /* new matchIndex, larger than previous and closer to current */
+            matchIndex = nextPtr[1];
+            if(matchIndex > 0){
+                DEBUGLOG(8, "DEBUG HERE");
+            }              /* new matchIndex, larger than previous and closer to current */
         } else {
             /* match is larger than current */
             *largerPtr = matchIndex;
