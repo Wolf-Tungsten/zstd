@@ -16,13 +16,13 @@ if __name__ == '__main__':
     seq_writter = SeqWritter(args.output_seq_path)
 
     model = LazyRowHashModel(input_reader, seq_writter, 
-                            window_log=19, 
+                            window_log=21, 
                             hash_cover_bytes=5, 
                             min_match_len=4,
                             hash_log=20,
-                            row_log=2,
+                            row_log=6,
                             tag_bits=8,
-                            nb_attempts=4,
+                            nb_attempts=64,
                             lazy_depth=2
                             )
     
