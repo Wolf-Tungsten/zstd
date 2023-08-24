@@ -33,12 +33,31 @@ class LazyRowHashModel(RowHashModel):
                 offset = 0
                 match_length = 0
                 lazy_bias = 0
-                for s in range(self.lazy_depth):
-                    o, ml = self.search(ip + s)
-                    if ml > match_length:
-                        offset = o
-                        match_length = ml
-                        lazy_bias = s
+                offset, match_length = self.search(ip)
+                lazy_offset = 0
+                lazy_match_length = 0
+                lazy_depth1_flags = False
+                lazy_depth2_flags = False
+                if match_length > self.min_match_len:
+                    lazy_offset, lazy_match_length = self.search(ip + 1)
+                    while lazy_match_length > match_length:
+                        lazy_depth1_flags = True
+                        lazy_bias += 1
+                        offset = lazy_offset
+                        match_length = lazy_match_length
+                        lazy_offset, lazy_match_length = self.search(ip + lazy_bias + 1)
+                    if not lazy_depth1_flags:
+                        lazy_bias += 1
+                        lazy_offset, lazy_match_length = self.search(ip + 2)
+                        while lazy_match_length > match_length:
+                            lazy_depth2_flags = True
+                            lazy_bias += 1
+                            offset = lazy_offset
+                            match_length = lazy_match_length
+                            lazy_offset, lazy_match_length = self.search(ip + lazy_bias + 1)
+                        if not lazy_depth2_flags:
+                            lazy_bias = 0
+                        
                 if offset > 0:
                     # self.seq_checker.check(offset, ip - prev_ip, match_length)
                     self.seq_writter.write_seq(
