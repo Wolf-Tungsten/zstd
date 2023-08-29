@@ -22,8 +22,7 @@ if __name__ == '__main__':
                             hash_log=20,
                             row_log=4,
                             tag_bits=8,
-                            nb_attempts=16,
-                            lazy_depth=2
+                            nb_attempts=16
                             )
     
     model.process()
