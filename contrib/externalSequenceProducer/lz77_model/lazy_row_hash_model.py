@@ -73,9 +73,10 @@ class LazyRowHashModel(RowHashModel):
             offset = 0
             match_length = 0
             enhanced_ip = 0
+            is_rep_code = False
             ip = 0
             while ip < self.ilimit:
-                if ip == 269:
+                if ip == 528:
                     print("debug here")
                 enhanced = False
                 if self.lazy_state == LazyState.lazy0:
@@ -87,6 +88,7 @@ class LazyRowHashModel(RowHashModel):
                         match_length = ml
                         enhanced_ip = ip+1
                         enhanced = True
+                        is_rep_code = True
                         if self.log:
                             print("%s enhanced by offset_1=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
                 elif self.lazy_state == LazyState.lazy1:
@@ -96,11 +98,12 @@ class LazyRowHashModel(RowHashModel):
                     # int const gain2 = (int)(mlRep * 3);
                     # int const gain1 = (int)(matchLength*3 - ZSTD_highbit32((U32)offBase) + 1);
                     gain2 = ml * 3
-                    gain1 = match_length * 3 - self.bit_count(offset) + 1
+                    gain1 = match_length * 3 - self.bit_count(1 if is_rep_code else offset) + 1
                     if ml >= self.min_match_len and gain2 > gain1:
                         offset = o
                         match_length = ml
                         enhanced_ip = ip
+                        is_rep_code = True
                         if self.log:
                             print("%s enhanced by offset_1=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
                 elif self.lazy_state == LazyState.lazy2:
@@ -108,11 +111,12 @@ class LazyRowHashModel(RowHashModel):
                         print(self.lazy_state, "check offset_1 at", ip)
                     o, ml = self.check_rep_offset_1(ip)
                     gain2 = ml * 4
-                    gain1 = match_length * 4 - self.bit_count(offset) + 1
+                    gain1 = match_length * 4 - self.bit_count(1 if is_rep_code else offset) + 1
                     if ml >= self.min_match_len and gain2 > gain1:
                         offset = o
                         match_length = ml
                         enhanced_ip = ip
+                        is_rep_code = True
                         if self.log:
                             print("%s enhanced by offset_1=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
 
@@ -125,26 +129,29 @@ class LazyRowHashModel(RowHashModel):
                         match_length = ml
                         enhanced_ip = ip
                         enhanced = True
+                        is_rep_code = False
                         if self.log:
                             print("%s enhanced by searchMax offset=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
                 elif self.lazy_state == LazyState.lazy1:
                     gain2 = ml * 4 - self.bit_count(o)
-                    gain1 = match_length * 4 - self.bit_count(offset) + 4
+                    gain1 = match_length * 4 - self.bit_count(1 if is_rep_code else offset) + 4
                     if ml >= self.min_match_len and gain2 > gain1:
                         offset = o
                         match_length = ml
                         enhanced_ip = ip
                         enhanced = True
+                        is_rep_code = False
                         if self.log:
                             print("%s enhanced by searchMax offset=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
                 elif self.lazy_state == LazyState.lazy2:
                     gain2 = ml * 4 - self.bit_count(o)
-                    gain1 = match_length * 4 - self.bit_count(offset) + 7
+                    gain1 = match_length * 4 - self.bit_count(1 if is_rep_code else offset) + 7
                     if ml >= self.min_match_len and gain2 > gain1:
                         offset = o
                         match_length = ml
                         enhanced_ip = ip
                         enhanced = True
+                        is_rep_code = False
                         if self.log:
                             print("%s enhanced by searchMax offset=%d ml=%d at %d" % (self.lazy_state, offset, match_length, enhanced_ip))
                 
@@ -177,13 +184,13 @@ class LazyRowHashModel(RowHashModel):
 
                 if match_length > 0:
                     assert(match_length >= self.min_match_len)
-                    catch_up_len = self.catch_up_count(enhanced_ip, offset)
-                    if self.log:
-                        print("catch up %d" % catch_up_len)
-                    enhanced_ip -= catch_up_len
-                    match_length += catch_up_len
-                    if self.log:
-                        print("commit: litLen=%d, matchLength=%d offset=%d at %d" % (enhanced_ip-self.next_encode_ip, match_length, offset, enhanced_ip))
+                    if (not is_rep_code) and enhanced_ip > self.next_encode_ip:
+                        catch_up_len = self.catch_up_count(enhanced_ip, offset)
+                        if self.log:
+                            print("catch up %d" % catch_up_len)
+                        enhanced_ip -= catch_up_len
+                        match_length += catch_up_len
+                    #print("commit: litLen=%d, matchLength=%d at %d" % (enhanced_ip-self.next_encode_ip, match_length,enhanced_ip))
                     self.seq_writter.write_seq(offset, enhanced_ip - self.next_encode_ip, match_length)
                     pbar.update(enhanced_ip + match_length - self.next_encode_ip)
                     self.next_encode_ip = enhanced_ip + match_length

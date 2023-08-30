@@ -1561,49 +1561,28 @@ ZSTD_compressBlock_lazy_generic(
         size_t matchLength=0;
         size_t offBase = REPCODE1_TO_OFFBASE;
         const BYTE* start=ip+1;
-        printf("[lazy_generic] search at in block address: %ld\n", ip - istart);
+
         DEBUGLOG(7, "search baseline (depth 0)");
 
         /* check repCode */
-        if (isDxS) {
-            const U32 repIndex = (U32)(ip - base) + 1 - offset_1;
-            const BYTE* repMatch = ((dictMode == ZSTD_dictMatchState || dictMode == ZSTD_dedicatedDictSearch)
-                                && repIndex < prefixLowestIndex) ?
-                                   dictBase + (repIndex - dictIndexDelta) :
-                                   base + repIndex;
-            if (((U32)((prefixLowestIndex-1) - repIndex) >= 3 /* intentional underflow */)
-                && (MEM_read32(repMatch) == MEM_read32(ip+1)) ) {
-                const BYTE* repMatchEnd = repIndex < prefixLowestIndex ? dictEnd : iend;
-                matchLength = ZSTD_count_2segments(ip+1+4, repMatch+4, iend, repMatchEnd, prefixLowest) + 4;
-                if (depth==0) goto _storeSequence;
-            }
-        }
         if ( dictMode == ZSTD_noDict
           && ((offset_1 > 0) & (MEM_read32(ip+1-offset_1) == MEM_read32(ip+1)))) {
             matchLength = ZSTD_count(ip+1+4, ip+1+4-offset_1, iend) + 4;
-            printf("\033[37;45m[lazy_generic] RepCode at offset_1 gives me a match starts at %ld length: %ld, offset: %ld, goto _storeSequence.\033[0m\n", ip-istart+1, matchLength, offset_1);
             if (depth==0) goto _storeSequence;
         }
 
         /* first search (depth 0) */
         {   size_t offbaseFound = 999999999;
-            if(ip-istart == 99){
-                printf("debug here");
-            }
             size_t const ml2 = ZSTD_searchMax(ms, ip, iend, &offbaseFound, mls, rowLog, searchMethod, dictMode);
-            printf("[lazy_generic] SearchMax gives me a match starts at %ld length: %ld, offset base: %ld, ", ip-istart, ml2, OFFBASE_TO_OFFSET(offbaseFound));
             if (ml2 > matchLength){
                 matchLength = ml2, start = ip, offBase = offbaseFound;
             } 
         }
 
         if (matchLength < 4) {
-            printf("but it is not long enough, move %d bytes forward to continue.\n", ((ip-anchor) >> kSearchStrength) + 1);
             ip += ((ip-anchor) >> kSearchStrength) + 1;   /* jump faster over incompressible sections */
             continue;
         }
-
-        printf("and it is long enough.\n");
 
         /* let's try to find a better solution */
         if (depth>=1)
@@ -1617,21 +1596,6 @@ ZSTD_compressBlock_lazy_generic(
                 int const gain1 = (int)(matchLength*3 - ZSTD_highbit32((U32)offBase) + 1);
                 if ((mlRep >= 4) && (gain2 > gain1))
                     matchLength = mlRep, offBase = REPCODE1_TO_OFFBASE, start = ip;
-            }
-            if (isDxS) {
-                const U32 repIndex = (U32)(ip - base) - offset_1;
-                const BYTE* repMatch = repIndex < prefixLowestIndex ?
-                               dictBase + (repIndex - dictIndexDelta) :
-                               base + repIndex;
-                if (((U32)((prefixLowestIndex-1) - repIndex) >= 3 /* intentional underflow */)
-                    && (MEM_read32(repMatch) == MEM_read32(ip)) ) {
-                    const BYTE* repMatchEnd = repIndex < prefixLowestIndex ? dictEnd : iend;
-                    size_t const mlRep = ZSTD_count_2segments(ip+4, repMatch+4, iend, repMatchEnd, prefixLowest) + 4;
-                    int const gain2 = (int)(mlRep * 3);
-                    int const gain1 = (int)(matchLength*3 - ZSTD_highbit32((U32)offBase) + 1);
-                    if ((mlRep >= 4) && (gain2 > gain1))
-                        matchLength = mlRep, offBase = REPCODE1_TO_OFFBASE, start = ip;
-                }
             }
             {   size_t ofbCandidate=999999999;
                 size_t const ml2 = ZSTD_searchMax(ms, ip, iend, &ofbCandidate, mls, rowLog, searchMethod, dictMode);
@@ -1654,21 +1618,6 @@ ZSTD_compressBlock_lazy_generic(
                     if ((mlRep >= 4) && (gain2 > gain1))
                         matchLength = mlRep, offBase = REPCODE1_TO_OFFBASE, start = ip;
                 }
-                if (isDxS) {
-                    const U32 repIndex = (U32)(ip - base) - offset_1;
-                    const BYTE* repMatch = repIndex < prefixLowestIndex ?
-                                   dictBase + (repIndex - dictIndexDelta) :
-                                   base + repIndex;
-                    if (((U32)((prefixLowestIndex-1) - repIndex) >= 3 /* intentional underflow */)
-                        && (MEM_read32(repMatch) == MEM_read32(ip)) ) {
-                        const BYTE* repMatchEnd = repIndex < prefixLowestIndex ? dictEnd : iend;
-                        size_t const mlRep = ZSTD_count_2segments(ip+4, repMatch+4, iend, repMatchEnd, prefixLowest) + 4;
-                        int const gain2 = (int)(mlRep * 4);
-                        int const gain1 = (int)(matchLength*4 - ZSTD_highbit32((U32)offBase) + 1);
-                        if ((mlRep >= 4) && (gain2 > gain1))
-                            matchLength = mlRep, offBase = REPCODE1_TO_OFFBASE, start = ip;
-                    }
-                }
                 {   size_t ofbCandidate=999999999;
                     size_t const ml2 = ZSTD_searchMax(ms, ip, iend, &ofbCandidate, mls, rowLog, searchMethod, dictMode);
                     int const gain2 = (int)(ml2*4 - ZSTD_highbit32((U32)ofbCandidate));   /* raw approx */
@@ -1685,64 +1634,36 @@ ZSTD_compressBlock_lazy_generic(
          * notably if `value` is unsigned, resulting in a large positive `-value`.
          */
         /* catch up */
+        if(start - base == 514){
+            printf("debug here");
+        }
         if (OFFBASE_IS_OFFSET(offBase)) {
-            printf("[lazy generic] Catch up");
-            if(start != ip) {
-                printf("[lazy generic] start != ip\n");
-                exit(1);
-            }
             int catchUpLen = 0;
             if (dictMode == ZSTD_noDict) {
                 while ( ((start > anchor) & (start - OFFBASE_TO_OFFSET(offBase) > prefixLowest))
                      && (start[-1] == (start-OFFBASE_TO_OFFSET(offBase))[-1]) )  /* only search for offset within prefix */
                     { start--; matchLength++; catchUpLen++;}
             }
-            printf(" %d bytes backward, update offset\n", catchUpLen);
-            if (isDxS) {
-                U32 const matchIndex = (U32)((size_t)(start-base) - OFFBASE_TO_OFFSET(offBase));
-                const BYTE* match = (matchIndex < prefixLowestIndex) ? dictBase + matchIndex - dictIndexDelta : base + matchIndex;
-                const BYTE* const mStart = (matchIndex < prefixLowestIndex) ? dictLowest : prefixLowest;
-                while ((start>anchor) && (match>mStart) && (start[-1] == match[-1])) { start--; match--; matchLength++; }  /* catch up */
+            if(catchUpLen > 0){
+                printf("catch up at %d, catch up len=%d\n", start-istart, catchUpLen);
             }
             offset_2 = offset_1; offset_1 = (U32)OFFBASE_TO_OFFSET(offBase);
         }
         /* store sequence */
 _storeSequence:
         {   size_t const litLength = (size_t)(start - anchor);
-            printf("\033[30;43m[lazy_generic] store a sequence: litLength=%zu, matchLength=%zu, offset=%zu(%zu)\033[0m, move forward to %zu\n", litLength, matchLength, (OFFBASE_IS_REPCODE(offBase) ? offBase : OFFBASE_TO_OFFSET(offBase)), offBase, start - istart + matchLength);
+            printf("commit: litLen=%d, matchLength=%d at %d\n", litLength, matchLength, anchor-base-2+litLength);
             ZSTD_storeSeq(seqStore, litLength, anchor, iend, (U32)offBase, matchLength);
             anchor = ip = start + matchLength;
         }
 
         /* check immediate repcode */
-        if (isDxS) {
-            while (ip <= ilimit) {
-                U32 const current2 = (U32)(ip-base);
-                U32 const repIndex = current2 - offset_2;
-                const BYTE* repMatch = repIndex < prefixLowestIndex ?
-                        dictBase - dictIndexDelta + repIndex :
-                        base + repIndex;
-                if ( ((U32)((prefixLowestIndex-1) - (U32)repIndex) >= 3 /* intentional overflow */)
-                   && (MEM_read32(repMatch) == MEM_read32(ip)) ) {
-                    const BYTE* const repEnd2 = repIndex < prefixLowestIndex ? dictEnd : iend;
-                    matchLength = ZSTD_count_2segments(ip+4, repMatch+4, iend, repEnd2, prefixLowest) + 4;
-                    offBase = offset_2; offset_2 = offset_1; offset_1 = (U32)offBase;   /* swap offset_2 <=> offset_1 */
-                    ZSTD_storeSeq(seqStore, 0, anchor, iend, REPCODE1_TO_OFFBASE, matchLength);
-                    ip += matchLength;
-                    anchor = ip;
-                    continue;
-                }
-                break;
-            }
-        }
-
         if (dictMode == ZSTD_noDict) {
-            while ( ((ip <= ilimit) & (offset_2>0))
+            while ( 0 && ((ip <= ilimit) & (offset_2>0))
                  && (MEM_read32(ip) == MEM_read32(ip - offset_2)) ) {
                 /* store sequence */
                 matchLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
                 offBase = offset_2; offset_2 = offset_1; offset_1 = (U32)offBase; /* swap repcodes */
-                printf("\033[30;46m[lazy_generic] Offset2 gives a match, store a sequence: litLength=%zu, matchLength=%zu, offset=%zu\033[0m, update offset, move forward to %zu\n", 0, matchLength, offset_2, ip - istart + matchLength);
                 ZSTD_storeSeq(seqStore, 0, anchor, iend, REPCODE1_TO_OFFBASE, matchLength);
                 ip += matchLength;
                 anchor = ip;
