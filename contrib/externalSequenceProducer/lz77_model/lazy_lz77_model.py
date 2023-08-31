@@ -1,4 +1,4 @@
-from row_hash_model import RowHashModel
+from lz77_base_model import LZ77BaseModel
 import tqdm
 from enum import Enum
 
@@ -8,36 +8,22 @@ class LazyState(Enum):
     lazy2 = 2
     commit = -1
 
-class LazyRowHashModel(RowHashModel):
-    def __init__(self, input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, hash_log, row_log, tag_bits, nb_attempts):
-        RowHashModel.__init__(self, input_reader, seq_writter, window_log, hash_cover_bytes, min_match_len, hash_log, row_log, tag_bits, nb_attempts)
+class LazyLZ77Model(LZ77BaseModel):
+    def __init__(self, input_reader, seq_writter, hash_table, window_log, min_match_len, nb_attempts, hash_cover_bytes):
+        LZ77BaseModel.__init__(self, input_reader, seq_writter, hash_table, window_log, min_match_len, nb_attempts, hash_cover_bytes)
         self.offset_1 = 1
         self.offset_2 = 0
-        self.next_hash_insert_ip = 0
         self.next_encode_ip = 0
         self.lazy_state = LazyState.lazy0
         self.log = False
 
-    def update_hash_table(self, ip):
-        while ip - self.next_hash_insert_ip > 0:
-            row_idx, tag = self.row_tag_hash(self.next_hash_insert_ip)
-            if row_idx not in self.hash_table:
-                self.hash_table[row_idx] = []
-            self.update_hash_row(self.hash_table[row_idx], self.next_hash_insert_ip, tag)
-            self.next_hash_insert_ip += 1
-
-
     def row_find_best_match(self, ip):
-        self.update_hash_table(ip)
-        row_idx, tag = self.row_tag_hash(ip)
-        if row_idx not in self.hash_table:
-            return 0, 0
-        hash_row = self.hash_table[row_idx]
+        hash_row = self.hash_table.update_and_read(ip)
         match_length = 0
         offset = 0
         nb_attempts = self.nb_attempts
-        for (history_addr, history_tag) in hash_row:
-            if history_tag == tag and ip - history_addr < self.window_size:
+        for history_addr in hash_row:
+            if ip - history_addr < self.window_size:
                 ml = self.count_match_length(ip, history_addr)
                 if ml >= self.min_match_len and ml > match_length:
                     match_length = ml
@@ -76,8 +62,6 @@ class LazyRowHashModel(RowHashModel):
             is_rep_code = False
             ip = 0
             while ip < self.ilimit:
-                if ip == 528:
-                    print("debug here")
                 enhanced = False
                 if self.lazy_state == LazyState.lazy0:
                     if self.log:

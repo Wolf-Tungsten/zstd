@@ -1,6 +1,7 @@
 import argparse
 from file_io import InputReader, SeqWritter
-from lazy_row_hash_model import LazyRowHashModel
+from row_hash_table import RowHashTable
+from lazy_lz77_model import LazyLZ77Model
 
 
 if __name__ == '__main__':
@@ -15,17 +16,19 @@ if __name__ == '__main__':
     input_reader = InputReader(args.input_file_path)
     seq_writter = SeqWritter(args.output_seq_path)
 
-    model = LazyRowHashModel(input_reader, seq_writter, 
+    hash_table = RowHashTable(input_reader,
+                              hash_log=20,
+                              row_log=4,
+                              tag_bits=8,
+                              hash_cover_bytes=5)
+    lz77_model = LazyLZ77Model(input_reader, seq_writter, hash_table,
                             window_log=21, 
-                            hash_cover_bytes=5, 
                             min_match_len=4,
-                            hash_log=20,
-                            row_log=4,
-                            tag_bits=8,
-                            nb_attempts=16
+                            nb_attempts=16,
+                            hash_cover_bytes=4
                             )
     
-    model.process()
+    lz77_model.process()
     seq_writter.close()
     
     
