@@ -21,7 +21,7 @@ class RowHashTable(object):
         else:
             return (((raw_bytes_int << (64-input_bytes*8)) * prime[input_bytes]) & (0xFFFFFFFFFFFFFFFF)) >> (64 - output_bits)
         
-    def __row_tag_hash(self, ip):
+    def row_tag_hash(self, ip):
         original_hash_value = self.__hash_func(
             self.input_data[ip:ip+self.hash_cover_bytes], self.hash_bits)
         tag = original_hash_value & ((1 << self.tag_bits) - 1)
@@ -32,7 +32,7 @@ class RowHashTable(object):
     def update_and_read(self, ip):
         # 先进行更新
         while self.next_insert_ip < ip:
-            row_idx, tag = self.__row_tag_hash(self.next_insert_ip)
+            row_idx, tag = self.row_tag_hash(self.next_insert_ip)
             if row_idx not in self.hash_table:
                 self.hash_table[row_idx] = []
             hash_row = self.hash_table[row_idx]
@@ -41,7 +41,7 @@ class RowHashTable(object):
                 hash_row.pop(len(hash_row) - 1)
             self.next_insert_ip += 1
         # 再进行读取
-        row_idx, tag = self.__row_tag_hash(ip)
+        row_idx, tag = self.row_tag_hash(ip)
         if row_idx not in self.hash_table:
             return []
         hash_row = self.hash_table[row_idx]
