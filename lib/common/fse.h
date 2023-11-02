@@ -448,6 +448,7 @@ MEM_STATIC void FSE_initCState(FSE_CState_t* statePtr, const FSE_CTable* ct)
 /*! FSE_initCState2() :
 *   Same as FSE_initCState(), but the first symbol to include (which will be the last to be read)
 *   uses the smallest state value possible, saving the cost of this symbol */
+extern int first_block_flag;
 MEM_STATIC void FSE_initCState2(FSE_CState_t* statePtr, const FSE_CTable* ct, U32 symbol)
 {
     FSE_initCState(statePtr, ct);
@@ -456,6 +457,9 @@ MEM_STATIC void FSE_initCState2(FSE_CState_t* statePtr, const FSE_CTable* ct, U3
         U32 nbBitsOut  = (U32)((symbolTT.deltaNbBits + (1<<15)) >> 16);
         statePtr->value = (nbBitsOut << 16) - symbolTT.deltaNbBits;
         statePtr->value = stateTable[(statePtr->value >> nbBitsOut) + symbolTT.deltaFindState];
+        if(first_block_flag){
+            printf("init encode symbol:%d, output %d bits, state turn to:%d \n", symbol, nbBitsOut, statePtr->value);
+        }
     }
 }
 
@@ -466,6 +470,9 @@ MEM_STATIC void FSE_encodeSymbol(BIT_CStream_t* bitC, FSE_CState_t* statePtr, un
     U32 const nbBitsOut  = (U32)((statePtr->value + symbolTT.deltaNbBits) >> 16);
     BIT_addBits(bitC, statePtr->value, nbBitsOut);
     statePtr->value = stateTable[ (statePtr->value >> nbBitsOut) + symbolTT.deltaFindState];
+    if(first_block_flag){
+        printf("encode symbol:%d, output %d bits, state turn to:%d \n", symbol, nbBitsOut, statePtr->value);
+    }
 }
 
 MEM_STATIC void FSE_flushCState(BIT_CStream_t* bitC, const FSE_CState_t* statePtr)
@@ -545,11 +552,13 @@ MEM_STATIC void FSE_updateState(FSE_DState_t* DStatePtr, BIT_DStream_t* bitD)
     DStatePtr->state = DInfo.newState + lowBits;
 }
 
+extern int linecode;
 MEM_STATIC BYTE FSE_decodeSymbol(FSE_DState_t* DStatePtr, BIT_DStream_t* bitD)
 {
     FSE_decode_t const DInfo = ((const FSE_decode_t*)(DStatePtr->table))[DStatePtr->state];
     U32 const nbBits = DInfo.nbBits;
     BYTE const symbol = DInfo.symbol;
+    printf("%d, state: %d, decode symbol: %d\n", linecode--, DStatePtr->state+32, symbol);
     size_t const lowBits = BIT_readBits(bitD, nbBits);
 
     DStatePtr->state = DInfo.newState + lowBits;

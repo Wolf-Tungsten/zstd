@@ -546,6 +546,7 @@ size_t FSE_buildCTable_rle (FSE_CTable* ct, BYTE symbolValue)
     return 0;
 }
 
+int first_block_flag = 1;
 
 static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
                            const void* src, size_t srcSize,
@@ -645,6 +646,7 @@ static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
     FSE_flushCState(&bitC, &CState3);
     FSE_flushCState(&bitC, &CState2);
     FSE_flushCState(&bitC, &CState1);
+    first_block_flag = 0;
     return BIT_closeCStream(&bitC);
 }
 
