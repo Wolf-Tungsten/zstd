@@ -287,6 +287,7 @@ ZSTD_buildCTable(void* dst, size_t dstCapacity,
     }
 }
 
+#define STATE_N 4
 FORCE_INLINE_TEMPLATE size_t
 ZSTD_encodeSequences_body(
             void* dst, size_t dstCapacity,
@@ -296,9 +297,10 @@ ZSTD_encodeSequences_body(
             seqDef const* sequences, size_t nbSeq, int longOffsets)
 {
     BIT_CStream_t blockStream;
-    FSE_CState_t  stateMatchLength;
-    FSE_CState_t  stateOffsetBits;
-    FSE_CState_t  stateLitLength;
+    
+    FSE_CState_t  stateMatchLength[STATE_N];
+    FSE_CState_t  stateOffsetBits[STATE_N];
+    FSE_CState_t  stateLitLength[STATE_N];
 
     RETURN_ERROR_IF(
         ERR_isError(BIT_initCStream(&blockStream, dst, dstCapacity)),
@@ -307,30 +309,33 @@ ZSTD_encodeSequences_body(
                 (int)(blockStream.endPtr - blockStream.startPtr),
                 (unsigned)dstCapacity);
 
-    /* first symbols */
-    FSE_initCState2(&stateMatchLength, CTable_MatchLength, mlCodeTable[nbSeq-1]);
-    FSE_initCState2(&stateOffsetBits,  CTable_OffsetBits,  ofCodeTable[nbSeq-1]);
-    FSE_initCState2(&stateLitLength,   CTable_LitLength,   llCodeTable[nbSeq-1]);
-    BIT_addBits(&blockStream, sequences[nbSeq-1].litLength, LL_bits[llCodeTable[nbSeq-1]]);
-    if (MEM_32bits()) BIT_flushBits(&blockStream);
-    BIT_addBits(&blockStream, sequences[nbSeq-1].mlBase, ML_bits[mlCodeTable[nbSeq-1]]);
-    if (MEM_32bits()) BIT_flushBits(&blockStream);
-    if (longOffsets) {
-        U32 const ofBits = ofCodeTable[nbSeq-1];
-        unsigned const extraBits = ofBits - MIN(ofBits, STREAM_ACCUMULATOR_MIN-1);
-        if (extraBits) {
-            BIT_addBits(&blockStream, sequences[nbSeq-1].offBase, extraBits);
-            BIT_flushBits(&blockStream);
+    // init state
+    for(int i = 0; i < STATE_N; i++) {
+        FSE_initCState2(stateMatchLength+i, CTable_MatchLength, mlCodeTable[nbSeq-1-i]);
+        FSE_initCState2(stateOffsetBits+i,  CTable_OffsetBits,  ofCodeTable[nbSeq-1-i]);
+        FSE_initCState2(stateLitLength+i,   CTable_LitLength,   llCodeTable[nbSeq-1-i]);
+        BIT_addBits(&blockStream, sequences[nbSeq-1-i].litLength, LL_bits[llCodeTable[nbSeq-1-i]]);
+        if (MEM_32bits()) BIT_flushBits(&blockStream);
+        BIT_addBits(&blockStream, sequences[nbSeq-1-i].mlBase, ML_bits[mlCodeTable[nbSeq-1-i]]);
+        if (MEM_32bits()) BIT_flushBits(&blockStream);
+        if (longOffsets) {
+            U32 const ofBits = ofCodeTable[nbSeq-1-i];
+            unsigned const extraBits = ofBits - MIN(ofBits, STREAM_ACCUMULATOR_MIN-1);
+            if (extraBits) {
+                BIT_addBits(&blockStream, sequences[nbSeq-1-i].offBase, extraBits);
+                BIT_flushBits(&blockStream);
+            }
+            BIT_addBits(&blockStream, sequences[nbSeq-1-i].offBase >> extraBits,
+                        ofBits - extraBits);
+        } else {
+            BIT_addBits(&blockStream, sequences[nbSeq-1-i].offBase, ofCodeTable[nbSeq-1-i]);
         }
-        BIT_addBits(&blockStream, sequences[nbSeq-1].offBase >> extraBits,
-                    ofBits - extraBits);
-    } else {
-        BIT_addBits(&blockStream, sequences[nbSeq-1].offBase, ofCodeTable[nbSeq-1]);
+        BIT_flushBits(&blockStream);
     }
-    BIT_flushBits(&blockStream);
 
+    int stateSel = 0;
     {   size_t n;
-        for (n=nbSeq-2 ; n<nbSeq ; n--) {      /* intentional underflow */
+        for (n=nbSeq-5 ; n<nbSeq ; n--) {      /* intentional underflow */
             BYTE const llCode = llCodeTable[n];
             BYTE const ofCode = ofCodeTable[n];
             BYTE const mlCode = mlCodeTable[n];
@@ -343,10 +348,10 @@ ZSTD_encodeSequences_body(
                         (unsigned)sequences[n].offBase);
                                                                             /* 32b*/  /* 64b*/
                                                                             /* (7)*/  /* (7)*/
-            FSE_encodeSymbol(&blockStream, &stateOffsetBits, ofCode);       /* 15 */  /* 15 */
-            FSE_encodeSymbol(&blockStream, &stateMatchLength, mlCode);      /* 24 */  /* 24 */
+            FSE_encodeSymbol(&blockStream, stateOffsetBits + stateSel, ofCode);       /* 15 */  /* 15 */
+            FSE_encodeSymbol(&blockStream, stateMatchLength + stateSel, mlCode);      /* 24 */  /* 24 */
             if (MEM_32bits()) BIT_flushBits(&blockStream);                  /* (7)*/
-            FSE_encodeSymbol(&blockStream, &stateLitLength, llCode);        /* 16 */  /* 33 */
+            FSE_encodeSymbol(&blockStream, stateLitLength + stateSel, llCode);        /* 16 */  /* 33 */
             if (MEM_32bits() || (ofBits+mlBits+llBits >= 64-7-(LLFSELog+MLFSELog+OffFSELog)))
                 BIT_flushBits(&blockStream);                                /* (7)*/
             BIT_addBits(&blockStream, sequences[n].litLength, llBits);
@@ -366,14 +371,19 @@ ZSTD_encodeSequences_body(
             }
             BIT_flushBits(&blockStream);                                    /* (7)*/
             DEBUGLOG(7, "remaining space : %i", (int)(blockStream.endPtr - blockStream.ptr));
+            stateSel = (stateSel + 1) % STATE_N;
     }   }
 
-    DEBUGLOG(6, "ZSTD_encodeSequences: flushing ML state with %u bits", stateMatchLength.stateLog);
-    FSE_flushCState(&blockStream, &stateMatchLength);
-    DEBUGLOG(6, "ZSTD_encodeSequences: flushing Off state with %u bits", stateOffsetBits.stateLog);
-    FSE_flushCState(&blockStream, &stateOffsetBits);
-    DEBUGLOG(6, "ZSTD_encodeSequences: flushing LL state with %u bits", stateLitLength.stateLog);
-    FSE_flushCState(&blockStream, &stateLitLength);
+    BIT_addBits(&blockStream, stateSel, 4);
+
+    for(int i = 0; i < STATE_N; i++){
+        DEBUGLOG(6, "ZSTD_encodeSequences: flushing ML state with %u bits", stateMatchLength[i].stateLog);
+        FSE_flushCState(&blockStream, stateMatchLength+i);
+        DEBUGLOG(6, "ZSTD_encodeSequences: flushing Off state with %u bits", stateOffsetBits[i].stateLog);
+        FSE_flushCState(&blockStream, stateOffsetBits+i);
+        DEBUGLOG(6, "ZSTD_encodeSequences: flushing LL state with %u bits", stateLitLength[i].stateLog);
+        FSE_flushCState(&blockStream, stateLitLength+i);
+    }
 
     {   size_t const streamSize = BIT_closeCStream(&blockStream);
         RETURN_ERROR_IF(streamSize==0, dstSize_tooSmall, "not enough space");
