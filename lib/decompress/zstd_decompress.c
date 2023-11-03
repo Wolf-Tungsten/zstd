@@ -977,7 +977,8 @@ static size_t ZSTD_decompressFrame(ZSTD_DCtx* dctx,
         size_t decodedSize;
         blockProperties_t blockProperties;
         size_t const cBlockSize = ZSTD_getcBlockSize(ip, remainingSrcSize, &blockProperties);
-        if (ZSTD_isError(cBlockSize)) return cBlockSize;
+        if (ZSTD_isError(cBlockSize)) 
+            return cBlockSize;
 
         ip += ZSTD_blockHeaderSize;
         remainingSrcSize -= ZSTD_blockHeaderSize;
@@ -1025,7 +1026,8 @@ static size_t ZSTD_decompressFrame(ZSTD_DCtx* dctx,
         assert(ip != NULL);
         ip += cBlockSize;
         remainingSrcSize -= cBlockSize;
-        if (blockProperties.lastBlock) break;
+        if (blockProperties.lastBlock) 
+            break;
     }
 
     if (dctx->fParams.frameContentSize != ZSTD_CONTENTSIZE_UNKNOWN) {

@@ -745,19 +745,22 @@ typedef struct {
     size_t litLength;
     size_t matchLength;
     size_t offset;
+    size_t offCode;
 } seq_t;
 
 typedef struct {
     size_t state;
     const ZSTD_seqSymbol* table;
 } ZSTD_fseState;
-
+#define STATE_N 8
 typedef struct {
     BIT_DStream_t DStream;
-    ZSTD_fseState stateLL;
-    ZSTD_fseState stateOffb;
-    ZSTD_fseState stateML;
+    ZSTD_fseState stateLL[STATE_N];
+    ZSTD_fseState stateOffb[STATE_N];
+    ZSTD_fseState stateML[STATE_N];
     size_t prevOffset[ZSTD_REP_NUM];
+    int stateSel;
+    char endFlag;
 } seqState_t;
 
 /*! ZSTD_overlapCopy8() :
@@ -1202,13 +1205,14 @@ ZSTD_decodeSequence(seqState_t* seqState, const ZSTD_longOffset_e longOffsets)
     ZSTD_memcpy(mlDInfo, seqState->stateML.table + seqState->stateML.state, sizeof(ZSTD_seqSymbol));
     ZSTD_memcpy(ofDInfo, seqState->stateOffb.table + seqState->stateOffb.state, sizeof(ZSTD_seqSymbol));
 #else
-    const ZSTD_seqSymbol* const llDInfo = seqState->stateLL.table + seqState->stateLL.state;
-    const ZSTD_seqSymbol* const mlDInfo = seqState->stateML.table + seqState->stateML.state;
-    const ZSTD_seqSymbol* const ofDInfo = seqState->stateOffb.table + seqState->stateOffb.state;
+    const ZSTD_seqSymbol* const llDInfo = (seqState->stateLL)[seqState->stateSel].table + (seqState->stateLL)[seqState->stateSel].state;
+    const ZSTD_seqSymbol* const mlDInfo = (seqState->stateML)[seqState->stateSel].table + (seqState->stateML)[seqState->stateSel].state;
+    const ZSTD_seqSymbol* const ofDInfo = (seqState->stateOffb)[seqState->stateSel].table + (seqState->stateOffb)[seqState->stateSel].state;
 #endif
     seq.matchLength = mlDInfo->baseValue;
     seq.litLength = llDInfo->baseValue;
     {   U32 const ofBase = ofDInfo->baseValue;
+        
         BYTE const llBits = llDInfo->nbAdditionalBits;
         BYTE const mlBits = mlDInfo->nbAdditionalBits;
         BYTE const ofBits = ofDInfo->nbAdditionalBits;
@@ -1249,6 +1253,7 @@ ZSTD_decodeSequence(seqState_t* seqState, const ZSTD_longOffset_e longOffsets)
                     offset = ofBase + BIT_readBitsFast(&seqState->DStream, ofBits/*>0*/);   /* <=  (ZSTD_WINDOWLOG_MAX-1) bits */
                     if (MEM_32bits()) BIT_reloadDStream(&seqState->DStream);
                 }
+                seq.offCode = offset - ofBase;
                 seqState->prevOffset[2] = seqState->prevOffset[1];
                 seqState->prevOffset[1] = seqState->prevOffset[0];
                 seqState->prevOffset[0] = offset;
@@ -1288,12 +1293,16 @@ ZSTD_decodeSequence(seqState_t* seqState, const ZSTD_longOffset_e longOffsets)
         DEBUGLOG(6, "seq: litL=%u, matchL=%u, offset=%u",
                     (U32)seq.litLength, (U32)seq.matchLength, (U32)seq.offset);
 
-        ZSTD_updateFseStateWithDInfo(&seqState->stateLL, &seqState->DStream, llNext, llnbBits);    /* <=  9 bits */
-        ZSTD_updateFseStateWithDInfo(&seqState->stateML, &seqState->DStream, mlNext, mlnbBits);    /* <=  9 bits */
-        if (MEM_32bits()) BIT_reloadDStream(&seqState->DStream);    /* <= 18 bits */
-        ZSTD_updateFseStateWithDInfo(&seqState->stateOffb, &seqState->DStream, ofNext, ofnbBits);  /* <=  8 bits */
+        if(!seqState->endFlag){
+            ZSTD_updateFseStateWithDInfo(&(seqState->stateLL[seqState->stateSel]), &seqState->DStream, llNext, llnbBits);    /* <=  9 bits */
+            ZSTD_updateFseStateWithDInfo(&(seqState->stateML[seqState->stateSel]), &seqState->DStream, mlNext, mlnbBits);    /* <=  9 bits */
+            if (MEM_32bits()) BIT_reloadDStream(&seqState->DStream);    /* <= 18 bits */
+            ZSTD_updateFseStateWithDInfo(&(seqState->stateOffb[seqState->stateSel]), &seqState->DStream, ofNext, ofnbBits);  /* <=  8 bits */
+        }
     }
 
+    seqState->stateSel = seqState->stateSel == 0 ? STATE_N - 1 : (seqState->stateSel - 1);
+    
     return seq;
 }
 
@@ -1366,6 +1375,9 @@ ZSTD_decompressSequences_bodySplitLitBuffer( ZSTD_DCtx* dctx,
     const BYTE* const dictEnd = (const BYTE*) (dctx->dictEnd);
     DEBUGLOG(5, "ZSTD_decompressSequences_bodySplitLitBuffer");
     (void)frame;
+
+    printf("unsupported!\n");
+    exit(1);
 
     /* Regen sequences */
     if (nbSeq) {
@@ -1563,6 +1575,8 @@ ZSTD_decompressSequences_bodySplitLitBuffer( ZSTD_DCtx* dctx,
     return op-ostart;
 }
 
+static int nSeq = 0;
+static int nBlock = 0;
 FORCE_INLINE_TEMPLATE size_t
 DONT_VECTORIZE
 ZSTD_decompressSequences_body(ZSTD_DCtx* dctx,
@@ -1592,9 +1606,12 @@ ZSTD_decompressSequences_body(ZSTD_DCtx* dctx,
         RETURN_ERROR_IF(
             ERR_isError(BIT_initDStream(&seqState.DStream, ip, iend - ip)),
             corruption_detected, "");
-        ZSTD_initFseState(&seqState.stateLL, &seqState.DStream, dctx->LLTptr);
-        ZSTD_initFseState(&seqState.stateOffb, &seqState.DStream, dctx->OFTptr);
-        ZSTD_initFseState(&seqState.stateML, &seqState.DStream, dctx->MLTptr);
+        for(int i = STATE_N - 1; i >= 0; i--){
+            ZSTD_initFseState(&seqState.stateLL[i], &seqState.DStream, dctx->LLTptr);
+            ZSTD_initFseState(&seqState.stateOffb[i], &seqState.DStream, dctx->OFTptr);
+            ZSTD_initFseState(&seqState.stateML[i], &seqState.DStream, dctx->MLTptr);
+        }
+
         assert(dst != NULL);
 
         ZSTD_STATIC_ASSERT(
@@ -1616,8 +1633,15 @@ ZSTD_decompressSequences_body(ZSTD_DCtx* dctx,
 #  endif
 #endif
 
+        seqState.stateSel = BIT_readBitsFast(&seqState.DStream, 8);
+        seqState.stateSel = seqState.stateSel == 0 ? STATE_N - 1 : seqState.stateSel - 1;
+        BIT_reloadDStream(&seqState.DStream);
+
         for ( ; ; ) {
+            int _stateSel = seqState.stateSel;
+            seqState.endFlag = (nbSeq <= STATE_N);
             seq_t const sequence = ZSTD_decodeSequence(&seqState, isLongOffset);
+            // printf("D:nBlock=%d, nSeq=%d, stateSel=%d, litlen=%d, matchlen=%d, offset=%d\n", nBlock, nSeq++, _stateSel, sequence.litLength, sequence.matchLength, sequence.offset+3);
             size_t const oneSeqSize = ZSTD_execSequence(op, oend, sequence, &litPtr, litEnd, prefixStart, vBase, dictEnd);
 #if defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION) && defined(FUZZING_ASSERT_VALID_SEQUENCE)
             assert(!ZSTD_isError(oneSeqSize));
@@ -1637,7 +1661,11 @@ ZSTD_decompressSequences_body(ZSTD_DCtx* dctx,
         RETURN_ERROR_IF(nbSeq, corruption_detected, "");
         RETURN_ERROR_IF(BIT_reloadDStream(&seqState.DStream) < BIT_DStream_completed, corruption_detected, "");
         /* save reps for next block */
-        { U32 i; for (i=0; i<ZSTD_REP_NUM; i++) dctx->entropy.rep[i] = (U32)(seqState.prevOffset[i]); }
+        { 
+            U32 i; 
+            for (i=0; i<ZSTD_REP_NUM; i++) 
+            dctx->entropy.rep[i] = (U32)(seqState.prevOffset[i]); 
+        }
     }
 
     /* last literal segment */
@@ -1648,6 +1676,9 @@ ZSTD_decompressSequences_body(ZSTD_DCtx* dctx,
             op += lastLLSize;
         }
     }
+
+    nBlock++;
+    nSeq = 0;
 
     return op-ostart;
 }
@@ -1712,6 +1743,8 @@ ZSTD_decompressSequencesLong_body(
     const BYTE* const dictEnd = (const BYTE*) (dctx->dictEnd);
     (void)frame;
 
+    printf("unsupported!\n");
+    exit(1);
     /* Regen sequences */
     if (nbSeq) {
 #define STORED_SEQS 8

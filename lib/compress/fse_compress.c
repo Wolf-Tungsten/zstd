@@ -546,107 +546,63 @@ size_t FSE_buildCTable_rle (FSE_CTable* ct, BYTE symbolValue)
     return 0;
 }
 
-int first_block_flag = 1;
 
 static size_t FSE_compress_usingCTable_generic (void* dst, size_t dstSize,
                            const void* src, size_t srcSize,
                            const FSE_CTable* ct, const unsigned fast)
 {
-    const BYTE *const istart = (const BYTE *)src;
-    const BYTE *const iend = istart + srcSize;
-    const BYTE *ip = iend;
+    const BYTE* const istart = (const BYTE*) src;
+    const BYTE* const iend = istart + srcSize;
+    const BYTE* ip=iend;
 
     BIT_CStream_t bitC;
-    FSE_CState_t CState1, CState2, CState3, CState4;
+    FSE_CState_t CState1, CState2;
 
     /* init */
-    if (srcSize <= 4)
-        return 0;
-    {
-        size_t const initError = BIT_initCStream(&bitC, dst, dstSize);
-        if (FSE_isError(initError))
-            return 0; /* not enough space available to write a bitstream */
-    }
+    if (srcSize <= 2) return 0;
+    { size_t const initError = BIT_initCStream(&bitC, dst, dstSize);
+      if (FSE_isError(initError)) return 0; /* not enough space available to write a bitstream */ }
 
-#define FSE_FLUSHBITS(s) (fast ? BIT_flushBitsFast(s) : BIT_flushBits(s))
+#define FSE_FLUSHBITS(s)  (fast ? BIT_flushBitsFast(s) : BIT_flushBits(s))
 
-    if (srcSize % 4 == 1)
-    {
+    if (srcSize & 1) {
         FSE_initCState2(&CState1, ct, *--ip);
-        FSE_initCState2(&CState4, ct, *--ip);
-        FSE_initCState2(&CState3, ct, *--ip);
         FSE_initCState2(&CState2, ct, *--ip);
-        FSE_FLUSHBITS(&bitC);
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
         FSE_FLUSHBITS(&bitC);
-        srcSize -= 5;
-    }
-    else if (srcSize % 4 == 2)
-    {
+    } else {
         FSE_initCState2(&CState2, ct, *--ip);
         FSE_initCState2(&CState1, ct, *--ip);
-        FSE_initCState2(&CState4, ct, *--ip);
-        FSE_initCState2(&CState3, ct, *--ip);
-        FSE_FLUSHBITS(&bitC);
+    }
+
+    /* join to mod 4 */
+    srcSize -= 2;
+    if ((sizeof(bitC.bitContainer)*8 > FSE_MAX_TABLELOG*4+7 ) && (srcSize & 2)) {  /* test bit 2 */
         FSE_encodeSymbol(&bitC, &CState2, *--ip);
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
         FSE_FLUSHBITS(&bitC);
-        srcSize -= 6;
     }
-    else if (srcSize % 4 == 3)
-    {
-        FSE_initCState2(&CState3, ct, *--ip);
-        FSE_initCState2(&CState2, ct, *--ip);
-        FSE_initCState2(&CState1, ct, *--ip);
-        FSE_initCState2(&CState4, ct, *--ip);
-        FSE_FLUSHBITS(&bitC);
-        FSE_encodeSymbol(&bitC, &CState3, *--ip);
+
+    /* 2 or 4 encoding per loop */
+    while ( ip>istart ) {
+
         FSE_encodeSymbol(&bitC, &CState2, *--ip);
-        FSE_encodeSymbol(&bitC, &CState1, *--ip);
-        FSE_FLUSHBITS(&bitC);
-        srcSize -= 7;
-    }
-    else
-    {
-        FSE_initCState2(&CState4, ct, *--ip);
-        FSE_initCState2(&CState3, ct, *--ip);
-        FSE_initCState2(&CState2, ct, *--ip);
-        FSE_initCState2(&CState1, ct, *--ip);
-        FSE_FLUSHBITS(&bitC);
-        srcSize -= 4;
-    }
-    // else if (srcSize & 1) {
-    //     FSE_initCState2(&CState1, ct, *--ip);
-    //     FSE_initCState2(&CState2, ct, *--ip);
-    //     FSE_encodeSymbol(&bitC, &CState1, *--ip);
-    //     FSE_FLUSHBITS(&bitC);
-    // }
 
-    // /* join to mod 4 */
-    // srcSize -= 2;
-    // if ((sizeof(bitC.bitContainer)*8 > FSE_MAX_TABLELOG*4+7 ) && (srcSize & 2)) {  /* test bit 2 */
-    //     FSE_encodeSymbol(&bitC, &CState2, *--ip);
-    //     FSE_encodeSymbol(&bitC, &CState1, *--ip);
-    //     FSE_FLUSHBITS(&bitC);
-    // }
+        if (sizeof(bitC.bitContainer)*8 < FSE_MAX_TABLELOG*2+7 )   /* this test must be static */
+            FSE_FLUSHBITS(&bitC);
 
-    /* 4 encoding per loop */
-    while (ip > istart)
-    {
-
-        FSE_encodeSymbol(&bitC, &CState4, *--ip);
-        FSE_encodeSymbol(&bitC, &CState3, *--ip);
-        FSE_encodeSymbol(&bitC, &CState2, *--ip);
         FSE_encodeSymbol(&bitC, &CState1, *--ip);
 
+        if (sizeof(bitC.bitContainer)*8 > FSE_MAX_TABLELOG*4+7 ) {  /* this test must be static */
+            FSE_encodeSymbol(&bitC, &CState2, *--ip);
+            FSE_encodeSymbol(&bitC, &CState1, *--ip);
+        }
+
         FSE_FLUSHBITS(&bitC);
     }
 
-    FSE_flushCState(&bitC, &CState4);
-    FSE_flushCState(&bitC, &CState3);
     FSE_flushCState(&bitC, &CState2);
     FSE_flushCState(&bitC, &CState1);
-    first_block_flag = 0;
     return BIT_closeCStream(&bitC);
 }
 

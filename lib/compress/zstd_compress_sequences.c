@@ -287,7 +287,8 @@ ZSTD_buildCTable(void* dst, size_t dstCapacity,
     }
 }
 
-#define STATE_N 4
+#define STATE_N 8
+static int nBlock = 0;
 FORCE_INLINE_TEMPLATE size_t
 ZSTD_encodeSequences_body(
             void* dst, size_t dstCapacity,
@@ -311,6 +312,8 @@ ZSTD_encodeSequences_body(
 
     // init state
     for(int i = 0; i < STATE_N; i++) {
+        //printf("C:nBlock=%d, nSeq=%d, stateSel=%d, litlen=%d, matchlen=%d, offset=%d\n\n", nBlock, nbSeq-1-i, i, sequences[nbSeq-1-i].litLength, sequences[nbSeq-1-i].mlBase+MINMATCH, sequences[nbSeq-1-i].offBase);
+        
         FSE_initCState2(stateMatchLength+i, CTable_MatchLength, mlCodeTable[nbSeq-1-i]);
         FSE_initCState2(stateOffsetBits+i,  CTable_OffsetBits,  ofCodeTable[nbSeq-1-i]);
         FSE_initCState2(stateLitLength+i,   CTable_LitLength,   llCodeTable[nbSeq-1-i]);
@@ -335,10 +338,13 @@ ZSTD_encodeSequences_body(
 
     int stateSel = 0;
     {   size_t n;
-        for (n=nbSeq-5 ; n<nbSeq ; n--) {      /* intentional underflow */
+        for (n=nbSeq-1-STATE_N ; n<nbSeq ; n--) {      /* intentional underflow */
             BYTE const llCode = llCodeTable[n];
             BYTE const ofCode = ofCodeTable[n];
             BYTE const mlCode = mlCodeTable[n];
+            
+            // printf("C:nBlock=%d, nSeq=%d, stateSel=%d, litlen=%d, matchlen=%d, offset=%d\n", nBlock, n, stateSel, sequences[n].litLength, sequences[n].mlBase + MINMATCH, sequences[n].offBase);
+            
             U32  const llBits = LL_bits[llCode];
             U32  const ofBits = ofCode;
             U32  const mlBits = ML_bits[mlCode];
@@ -374,7 +380,8 @@ ZSTD_encodeSequences_body(
             stateSel = (stateSel + 1) % STATE_N;
     }   }
 
-    BIT_addBits(&blockStream, stateSel, 4);
+    BIT_addBits(&blockStream, stateSel, 8);
+    BIT_flushBits(&blockStream); 
 
     for(int i = 0; i < STATE_N; i++){
         DEBUGLOG(6, "ZSTD_encodeSequences: flushing ML state with %u bits", stateMatchLength[i].stateLog);
@@ -384,6 +391,8 @@ ZSTD_encodeSequences_body(
         DEBUGLOG(6, "ZSTD_encodeSequences: flushing LL state with %u bits", stateLitLength[i].stateLog);
         FSE_flushCState(&blockStream, stateLitLength+i);
     }
+
+    nBlock++;
 
     {   size_t const streamSize = BIT_closeCStream(&blockStream);
         RETURN_ERROR_IF(streamSize==0, dstSize_tooSmall, "not enough space");

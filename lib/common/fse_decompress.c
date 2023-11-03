@@ -172,7 +172,7 @@ size_t FSE_buildDTable_wksp(FSE_DTable* dt, const short* normalizedCounter, unsi
 /*-*******************************************************
 *  Decompression (Byte symbols)
 *********************************************************/
-int linecode = 212;
+
 FORCE_INLINE_TEMPLATE size_t FSE_decompress_usingDTable_generic(
           void* dst, size_t maxDstSize,
     const void* cSrc, size_t cSrcSize,
@@ -186,16 +186,12 @@ FORCE_INLINE_TEMPLATE size_t FSE_decompress_usingDTable_generic(
     BIT_DStream_t bitD;
     FSE_DState_t state1;
     FSE_DState_t state2;
-    FSE_DState_t state3;
-    FSE_DState_t state4;
 
     /* Init */
     CHECK_F(BIT_initDStream(&bitD, cSrc, cSrcSize));
 
     FSE_initDState(&state1, &bitD, dt);
     FSE_initDState(&state2, &bitD, dt);
-    FSE_initDState(&state3, &bitD, dt);
-    FSE_initDState(&state4, &bitD, dt);
 
 #define FSE_GETSYMBOL(statePtr) fast ? FSE_decodeSymbolFast(statePtr, &bitD) : FSE_decodeSymbol(statePtr, &bitD)
 
@@ -203,60 +199,38 @@ FORCE_INLINE_TEMPLATE size_t FSE_decompress_usingDTable_generic(
     for ( ; (BIT_reloadDStream(&bitD)==BIT_DStream_unfinished) & (op<olimit) ; op+=4) {
         op[0] = FSE_GETSYMBOL(&state1);
 
-        { if (BIT_reloadDStream(&bitD) > BIT_DStream_unfinished) { op+=1; goto tail_state2; } }
+        if (FSE_MAX_TABLELOG*2+7 > sizeof(bitD.bitContainer)*8)    /* This test must be static */
+            BIT_reloadDStream(&bitD);
 
         op[1] = FSE_GETSYMBOL(&state2);
 
-        // if (FSE_MAX_TABLELOG*4+7 > sizeof(bitD.bitContainer)*8)    /* This test must be static */
-        { if (BIT_reloadDStream(&bitD) > BIT_DStream_unfinished) { op+=2; goto tail_state3; } }
+        if (FSE_MAX_TABLELOG*4+7 > sizeof(bitD.bitContainer)*8)    /* This test must be static */
+            { if (BIT_reloadDStream(&bitD) > BIT_DStream_unfinished) { op+=2; break; } }
 
-        op[2] = FSE_GETSYMBOL(&state3);
+        op[2] = FSE_GETSYMBOL(&state1);
 
-        { if (BIT_reloadDStream(&bitD) > BIT_DStream_unfinished) { op+=3; goto tail_state4; } }
+        if (FSE_MAX_TABLELOG*2+7 > sizeof(bitD.bitContainer)*8)    /* This test must be static */
+            BIT_reloadDStream(&bitD);
 
-        op[3] = FSE_GETSYMBOL(&state4);
+        op[3] = FSE_GETSYMBOL(&state2);
     }
 
     /* tail */
     /* note : BIT_reloadDStream(&bitD) >= FSE_DStream_partiallyFilled; Ends at exactly BIT_DStream_completed */
     while (1) {
-        
-tail_state1: if (op>(omax-2)) return ERROR(dstSize_tooSmall);
+        if (op>(omax-2)) return ERROR(dstSize_tooSmall);
         *op++ = FSE_GETSYMBOL(&state1);
         if (BIT_reloadDStream(&bitD)==BIT_DStream_overflow) {
             *op++ = FSE_GETSYMBOL(&state2);
-            *op++ = FSE_GETSYMBOL(&state3);
-            *op++ = FSE_GETSYMBOL(&state4);
             break;
         }
 
-tail_state2: if (op>(omax-2)) return ERROR(dstSize_tooSmall);
+        if (op>(omax-2)) return ERROR(dstSize_tooSmall);
         *op++ = FSE_GETSYMBOL(&state2);
         if (BIT_reloadDStream(&bitD)==BIT_DStream_overflow) {
-            *op++ = FSE_GETSYMBOL(&state3);
-            *op++ = FSE_GETSYMBOL(&state4);
             *op++ = FSE_GETSYMBOL(&state1);
             break;
-        }
-
-tail_state3: if (op>(omax-2)) return ERROR(dstSize_tooSmall);
-        *op++ = FSE_GETSYMBOL(&state3);
-        if (BIT_reloadDStream(&bitD)==BIT_DStream_overflow) {
-            *op++ = FSE_GETSYMBOL(&state4);
-            *op++ = FSE_GETSYMBOL(&state1);
-            *op++ = FSE_GETSYMBOL(&state2);
-            break;
-        }
-
-tail_state4: if (op>(omax-2)) return ERROR(dstSize_tooSmall);
-        *op++ = FSE_GETSYMBOL(&state4);
-        if (BIT_reloadDStream(&bitD)==BIT_DStream_overflow) {
-            *op++ = FSE_GETSYMBOL(&state1);
-            *op++ = FSE_GETSYMBOL(&state2);
-            *op++ = FSE_GETSYMBOL(&state3);
-            break;
-        }   
-    }
+    }   }
 
     return op-ostart;
 }
