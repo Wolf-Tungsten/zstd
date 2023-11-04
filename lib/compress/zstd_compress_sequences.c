@@ -309,7 +309,8 @@ ZSTD_encodeSequences_body(
     DEBUGLOG(6, "available space for bitstream : %i  (dstCapacity=%u)",
                 (int)(blockStream.endPtr - blockStream.startPtr),
                 (unsigned)dstCapacity);
-
+    
+    //printf("%d,%d\n", nBlock, nbSeq);
     // init state
     for(int i = 0; i < STATE_N; i++) {
         //printf("C:nBlock=%d, nSeq=%d, stateSel=%d, litlen=%d, matchlen=%d, offset=%d\n\n", nBlock, nbSeq-1-i, i, sequences[nbSeq-1-i].litLength, sequences[nbSeq-1-i].mlBase+MINMATCH, sequences[nbSeq-1-i].offBase);
