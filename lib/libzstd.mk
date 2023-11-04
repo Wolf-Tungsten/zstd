@@ -89,7 +89,7 @@ endif
   CFLAGS += -fno-stack-protector -fomit-frame-pointer -fno-ident \
             -DDYNAMIC_BMI2=0 -DNDEBUG
 else
-  CFLAGS ?= -O0 -g
+  CFLAGS ?= -O3
 endif
 
 DEBUGLEVEL ?= 0
