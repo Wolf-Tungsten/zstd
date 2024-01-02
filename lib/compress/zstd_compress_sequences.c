@@ -287,7 +287,7 @@ ZSTD_buildCTable(void* dst, size_t dstCapacity,
     }
 }
 
-#define STATE_N 8
+#define STATE_N 1
 static int nBlock = 0;
 FORCE_INLINE_TEMPLATE size_t
 ZSTD_encodeSequences_body(

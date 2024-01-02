@@ -752,7 +752,7 @@ typedef struct {
     size_t state;
     const ZSTD_seqSymbol* table;
 } ZSTD_fseState;
-#define STATE_N 8
+#define STATE_N 1
 typedef struct {
     BIT_DStream_t DStream;
     ZSTD_fseState stateLL[STATE_N];
