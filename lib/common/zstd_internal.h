@@ -42,6 +42,7 @@
 #if defined (__cplusplus)
 extern "C" {
 #endif
+#include "grh_profiling.h"
 
 /* ---- static assert (debug) --- */
 #define ZSTD_STATIC_ASSERT(c) DEBUG_STATIC_ASSERT(c)

@@ -373,6 +373,8 @@ _match: /* Requires: ip0, match0, offcode */
 
     /* Count the forward length. */
     mLength += ZSTD_count(ip0 + mLength, match0 + mLength, iend);
+    update_grh_offset_histogram(ip0-match0);
+    update_grh_ml_histogram(mLength);
 
     ZSTD_storeSeq(seqStore, (size_t)(ip0 - anchor), anchor, iend, offcode, mLength);
 
@@ -390,6 +392,8 @@ _match: /* Requires: ip0, match0, offcode */
             while ( (ip0 <= ilimit) && (MEM_read32(ip0) == MEM_read32(ip0 - rep_offset2)) ) {
                 /* store sequence */
                 size_t const rLength = ZSTD_count(ip0+4, ip0+4-rep_offset2, iend) + 4;
+                update_grh_ml_histogram(rLength);
+                update_grh_offset_histogram(rep_offset2);
                 { U32 const tmpOff = rep_offset2; rep_offset2 = rep_offset1; rep_offset1 = tmpOff; } /* swap rep_offset2 <=> rep_offset1 */
                 hashTable[ZSTD_hashPtr(ip0, hlog, mls)] = (U32)(ip0-base);
                 ip0 += rLength;

@@ -656,6 +656,7 @@ ZSTD_storeSeq(seqStore_t* seqStorePtr,
               U32 offBase,
               size_t matchLength)
 {
+
     BYTE const* const litLimit_w = litLimit - WILDCOPY_OVERLENGTH;
     BYTE const* const litEnd = literals + litLength;
 #if defined(DEBUGLEVEL) && (DEBUGLEVEL >= 6)

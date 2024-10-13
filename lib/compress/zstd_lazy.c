@@ -1239,8 +1239,11 @@ size_t ZSTD_RowFindBestMatch(
                 const BYTE* const match = base + matchIndex;
                 assert(matchIndex >= dictLimit);   /* ensures this is true if dictMode != ZSTD_extDict */
                 /* read 4B starting from (match + ml + 1 - sizeof(U32)) */
-                if (MEM_read32(match + ml - 3) == MEM_read32(ip + ml - 3))   /* potentially better */
+                if (MEM_read32(match + ml - 3) == MEM_read32(ip + ml - 3)){   /* potentially better */
                     currentMl = ZSTD_count(ip, match, iLimit);
+                    update_grh_ml_histogram(currentMl);
+                    update_grh_offset_histogram(ip-match);
+                }
             } else {
                 const BYTE* const match = dictBase + matchIndex;
                 assert(match+4 <= dictEnd);
@@ -1577,6 +1580,8 @@ ZSTD_compressBlock_lazy_generic(
         if ( dictMode == ZSTD_noDict
           && ((offset_1 > 0) & (MEM_read32(ip+1-offset_1) == MEM_read32(ip+1)))) {
             matchLength = ZSTD_count(ip+1+4, ip+1+4-offset_1, iend) + 4;
+            update_grh_ml_histogram(matchLength);
+            update_grh_offset_histogram(offset_1);
             if (depth==0) goto _storeSequence;
         }
 
@@ -1609,6 +1614,8 @@ ZSTD_compressBlock_lazy_generic(
             if ( (dictMode == ZSTD_noDict)
               && (offBase) && ((offset_1>0) & (MEM_read32(ip) == MEM_read32(ip - offset_1)))) {
                 size_t const mlRep = ZSTD_count(ip+4, ip+4-offset_1, iend) + 4;
+                update_grh_ml_histogram(mlRep);
+                update_grh_offset_histogram(offset_1);
                 int const gain2 = (int)(mlRep * 3);
                 int const gain1 = (int)(matchLength*3 - ZSTD_highbit32((U32)offBase) + 1);
                 if ((mlRep >= 4) && (gain2 > gain1))
@@ -1645,6 +1652,8 @@ ZSTD_compressBlock_lazy_generic(
                 if ( (dictMode == ZSTD_noDict)
                   && (offBase) && ((offset_1>0) & (MEM_read32(ip) == MEM_read32(ip - offset_1)))) {
                     size_t const mlRep = ZSTD_count(ip+4, ip+4-offset_1, iend) + 4;
+                    update_grh_ml_histogram(mlRep);
+                    update_grh_offset_histogram(offset_1);
                     int const gain2 = (int)(mlRep * 4);
                     int const gain1 = (int)(matchLength*4 - ZSTD_highbit32((U32)offBase) + 1);
                     if ((mlRep >= 4) && (gain2 > gain1))
@@ -1736,6 +1745,8 @@ _storeSequence:
                  && (MEM_read32(ip) == MEM_read32(ip - offset_2)) ) {
                 /* store sequence */
                 matchLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
+                update_grh_ml_histogram(matchLength);
+                update_grh_offset_histogram(offset_2);
                 offBase = offset_2; offset_2 = offset_1; offset_1 = (U32)offBase; /* swap repcodes */
                 ZSTD_storeSeq(seqStore, 0, anchor, iend, REPCODE1_TO_OFFBASE, matchLength);
                 ip += matchLength;

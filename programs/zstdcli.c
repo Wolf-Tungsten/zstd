@@ -34,6 +34,7 @@
 #include <stdio.h>    /* fprintf(), stdin, stdout, stderr */
 #include <errno.h>    /* errno */
 #include <assert.h>   /* assert */
+#include "../lib/common/grh_profiling.h"
 
 #include "fileio.h"   /* stdinmark, stdoutmark, ZSTD_EXTENSION */
 #ifndef ZSTD_NOBENCH
@@ -1612,6 +1613,6 @@ _end:
 #ifndef ZSTD_NOTRACE
     TRACE_finish();
 #endif
-
+    print_grh_profiling();
     return operationResult;
 }

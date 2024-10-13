@@ -177,6 +177,8 @@ size_t ZSTD_compressBlock_doubleFast_noDict_generic(
             /* check noDict repcode */
             if ((offset_1 > 0) & (MEM_read32(ip+1-offset_1) == MEM_read32(ip+1))) {
                 mLength = ZSTD_count(ip+1+4, ip+1+4-offset_1, iend) + 4;
+                update_grh_offset_histogram(offset_1);
+                update_grh_ml_histogram(mLength);
                 ip++;
                 ZSTD_storeSeq(seqStore, (size_t)(ip-anchor), anchor, iend, REPCODE1_TO_OFFBASE, mLength);
                 goto _match_stored;
@@ -188,6 +190,8 @@ size_t ZSTD_compressBlock_doubleFast_noDict_generic(
                 /* check prefix long match */
                 if (MEM_read64(matchl0) == MEM_read64(ip)) {
                     mLength = ZSTD_count(ip+8, matchl0+8, iend) + 8;
+                    update_grh_offset_histogram((U32)(ip-matchl0));
+                    update_grh_ml_histogram(mLength);
                     offset = (U32)(ip-matchl0);
                     while (((ip>anchor) & (matchl0>prefixLowest)) && (ip[-1] == matchl0[-1])) { ip--; matchl0--; mLength++; } /* catch up */
                     goto _match_found;
@@ -240,6 +244,8 @@ _search_next_long:
             if (MEM_read64(matchl1) == MEM_read64(ip1)) {
                 ip = ip1;
                 mLength = ZSTD_count(ip+8, matchl1+8, iend) + 8;
+                update_grh_offset_histogram((U32)(ip-matchl1));
+                update_grh_ml_histogram(mLength);
                 offset = (U32)(ip-matchl1);
                 while (((ip>anchor) & (matchl1>prefixLowest)) && (ip[-1] == matchl1[-1])) { ip--; matchl1--; mLength++; } /* catch up */
                 goto _match_found;
@@ -248,6 +254,8 @@ _search_next_long:
 
         /* if no long +1 match, explore the short match we found */
         mLength = ZSTD_count(ip+4, matchs0+4, iend) + 4;
+        update_grh_offset_histogram((U32)(ip-matchs0));
+        update_grh_ml_histogram(mLength);
         offset = (U32)(ip - matchs0);
         while (((ip>anchor) & (matchs0>prefixLowest)) && (ip[-1] == matchs0[-1])) { ip--; matchs0--; mLength++; } /* catch up */
 
@@ -291,6 +299,8 @@ _match_stored:
                     & (MEM_read32(ip) == MEM_read32(ip - offset_2)) )) {
                 /* store sequence */
                 size_t const rLength = ZSTD_count(ip+4, ip+4-offset_2, iend) + 4;
+                update_grh_offset_histogram(offset_2);
+                update_grh_ml_histogram(rLength);
                 U32 const tmpOff = offset_2; offset_2 = offset_1; offset_1 = tmpOff;  /* swap offset_2 <=> offset_1 */
                 hashSmall[ZSTD_hashPtr(ip, hBitsS, mls)] = (U32)(ip-base);
                 hashLong[ZSTD_hashPtr(ip, hBitsL, 8)] = (U32)(ip-base);
