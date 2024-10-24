@@ -135,7 +135,7 @@ all: zstd zstd-compress zstd-decompress zstd-small
 allVariants: all zstd-frugal zstd-nolegacy zstd-dictBuilder
 
 .PHONY: zstd  # must always be run
-zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP)
+zstd : CPPFLAGS += $(THREAD_CPP) $(ZLIBCPP) $(LZMACPP) $(LZ4CPP) -g
 zstd : LDFLAGS += $(THREAD_LD) $(DEBUGFLAGS_LD)
 zstd : LDLIBS += $(ZLIBLD) $(LZMALD) $(LZ4LD)
 zstd : CPPFLAGS += -DZSTD_LEGACY_SUPPORT=$(ZSTD_LEGACY_SUPPORT)
