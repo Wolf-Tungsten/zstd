@@ -21,4 +21,5 @@ class SeqChecker(object):
                 print("offset=%d, lit_len=%d, match_len=%d" % (offset, lit_len, match_len))
                 assert(False)
             self.checked_pos += 1
+
         

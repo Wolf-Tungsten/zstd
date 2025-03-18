@@ -29,7 +29,7 @@ do {                                                    \
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        printf("Usage: externalSequenceProducer <file>\n");
+        printf("Usage: externalSequenceProducer <raw_file> <serialized_seq_file>\n");
         return 1;
     }
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     // load seq file
     char filepath[1024];
     sprintf(filepath, "%s", argv[2]);
-    simpleSequenceProducerState.fd = fopen(filepath, "rb");
+    simpleSequenceProducerState.fd = fopen(filepath, "r");
     if (simpleSequenceProducerState.fd == NULL) {
         printf("Error: cannot open file %s\n", filepath);
         exit(1);

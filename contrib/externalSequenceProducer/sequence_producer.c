@@ -53,6 +53,7 @@ size_t simpleSimulatorSequenceProducer(
             break;
         }
         if(encodeLength + seq.litLength + seq.matchLength > srcSize){
+            printf("Warning: encodeLength + seq.litLength + seq.matchLength > srcSize\n");
             state->headLitLen = (encodeLength + seq.litLength + seq.matchLength) - srcSize;
             int remainLen = srcSize - encodeLength;
             seq.litLength = remainLen;
